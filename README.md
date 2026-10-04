@@ -1,127 +1,86 @@
-# DeployX - Cloud CI/CD Tool
+# DeployX
 
-DeployX is a cloud-based CI/CD platform that automatically builds, tests,
-containerizes, and deploys applications from a connected GitHub repository to
-IBM Cloud. A live dashboard gives developers a central view of pipeline runs,
-build and deployment status, logs, and monitoring information.
+A cloud-based CI/CD platform that automatically builds, tests, containerizes, and deploys applications from a connected GitHub repository to the cloud — with build/deployment status visible on a live dashboard.
 
 ## Problem Statement
 
-Managing CI/CD manually often requires switching between GitHub, build tools,
-container registries, cloud consoles, and monitoring systems. DeployX brings
-these steps into one workflow so developers and small teams can trigger,
-observe, and troubleshoot deployments from a single dashboard.
+Setting up CI/CD manually for a small project is repetitive and error-prone — developers often end up SSH-ing into servers, manually building Docker images, and pushing updates by hand. DeployX automates this end-to-end: connect a repo, push code, and the pipeline handles build, test, containerization, and deployment automatically.
 
 ## Project Workflow
 
-GitHub Push → GitHub Webhook → CI/CD Pipeline → Build → Test → Dockerize
-→ Deploy to IBM Cloud → Status/Logs shown on Dashboard
+GitHub Push → GitHub Webhook → CI/CD Pipeline → Build → Test → Dockerize → Push to Container Registry → Deploy → Status/Logs shown on Dashboard
 
 ## Architecture
 
-```text
-GitHub Repository
-	 |
-	 v
- GitHub Webhook
-	 |
-	 v
- DeployX Backend ----> Pipeline Execution
-	 |                    |
-	 |                    +--> Build and Test
-	 |                    +--> Docker Image
-	 |                    +--> IBM Cloud Deployment
-	 |
-	 +--> Status, Logs, and Monitoring API
-		      ^
-		      |
-	   React + Vite Dashboard
-```
-
-The frontend communicates with backend APIs for pipeline management, GitHub
-integration, status updates, logs, authentication, and cloud operations. The
-backend coordinates builds and tests, creates Docker images, and deploys them
-to the configured IBM Cloud services.
+[Placeholder — add diagram once finalized]
 
 ## Tech Stack
 
-- Frontend: React, Vite
-- Backend: API and pipeline services (implementation in `backend/`)
-- Containerization: Docker
-- Cloud: IBM Cloud (Container Registry and configured compute services)
-- CI/CD: GitHub Actions
+* **Frontend:** React, Vite
+* **Backend:** Node.js
+* **Containerization:** Docker
+* **Container Registry:** GitHub Container Registry (GHCR)
+* **Cloud Deployment:** Render
+* **CI/CD:** GitHub Actions
 
-## Team And Responsibilities
+> Note: this project is not tied to a specific cloud provider — GHCR + Render were chosen for free, card-free deployment during development. The infrastructure setup is portable to other providers if needed later.
 
-| Member   | Role                            |
-| -------- | ------------------------------- |
-| Mitali   | Frontend and Cloud Integration  |
-| Sharva   | Backend and CI/CD Pipeline      |
-| Shantanu | Cloud Infrastructure and DevOps |
+## Live Deployment
 
-### Mitali - Frontend And Cloud Integration
+The DeployX backend is currently deployed on Render.
 
-- Build the React and Vite dashboard
-- Create the pipeline management interface
-- Display build and deployment status
-- Build logs and monitoring views
-- Connect the frontend to cloud APIs
-- Configure cloud authentication for the frontend
-- Document frontend setup and cloud integration
+**Backend URL:** https://deployx-backend-latest.onrender.com
 
-### Sharva - Backend And CI/CD Pipeline
+### Health Check
 
-- Build backend APIs
-- Implement GitHub integration and webhooks
-- Develop CI/CD pipeline logic
-- Automate builds and testing
-- Manage Docker image creation
-- Implement pipeline execution
-- Integrate backend services with cloud APIs
-- Document backend and pipeline behavior
+You can verify that the backend is running using:
 
-### Shantanu - Cloud Infrastructure And DevOps
+https://deployx-backend-latest.onrender.com/health
 
-- Configure IBM Cloud resources
-- Set up container and compute services
-- Maintain deployment infrastructure
-- Configure database and storage services
-- Manage environment variables and secrets
-- Set up monitoring, networking, and security
-- Support production deployments
-- Document infrastructure and DevOps procedures
+## Team
+
+| Member   | Role                          |
+| -------- | ----------------------------- |
+| Mitali   | Frontend + Cloud Integration  |
+| Sharva   | Backend + CI/CD Pipeline      |
+| Shantanu | Cloud Infrastructure + DevOps |
 
 ## Repository Structure
 
-| Directory         | Purpose                                                                       |
-| ----------------- | ----------------------------------------------------------------------------- |
-| `frontend/`       | React + Vite dashboard and frontend cloud integration                         |
-| `backend/`        | Backend APIs, GitHub integration, and pipeline execution                      |
-| `infrastructure/` | IBM Cloud, deployment, networking, security, and infrastructure configuration |
-| `docs/`           | Architecture, setup, integration, pipeline, and infrastructure documentation  |
+```text
+DeployX/
+├── frontend/          # React + Vite dashboard (Mitali)
+├── backend/           # Backend APIs, webhook handling (Sharva)
+├── infrastructure/    # Deployment configs, infra notes (Shantanu)
+├── .github/
+│   └── workflows/     # CI/CD pipeline definitions (shared)
+├── docs/              # Architecture notes, setup guides (all)
+├── .gitignore
+├── README.md
+└── LICENSE
+```
 
 ## Local Setup
 
-Prerequisites:
+[Placeholder — add once frontend and full backend are runnable end-to-end]
 
-- Node.js and npm
-- Docker
-- A GitHub repository and webhook configuration
-- IBM Cloud access with the required permissions
-
-The frontend and backend are maintained as separate applications. Install each
-application's dependencies from its directory and follow the setup notes in
-`docs/` for environment variables, GitHub credentials, IBM Cloud credentials,
-and service configuration.
+### Running the Backend Locally
 
 ```bash
-cd frontend
-npm install
-npm run dev
+cd backend
+node server.js
 ```
 
-Start the backend using the instructions in `backend/`. Do not commit secrets
-or local `.env` files; use the documented environment-variable configuration.
+Server runs on `http://localhost:3000` by default (or `$PORT` if set).
+
+* `GET /` → placeholder response
+* `GET /health` → returns `OK`, used for deployment health checks
+
+## Deployment Status
+
+* **Backend:** deployed on Render, pulling images from GHCR
+* **Frontend:** not yet deployed
+* **CI/CD pipeline:** manual build/push/deploy for now — GitHub Actions automation in progress
 
 ## Contribution Workflow
 
@@ -130,21 +89,9 @@ or local `.env` files; use the documented environment-variable configuration.
 3. Open a PR into `develop`; get at least 1 review
 4. `develop` merges into `main` at stable milestones
 
-## Documentation
-
-Project documentation is organized by ownership:
-
-- Frontend and cloud integration: `frontend/` and `docs/`
-- Backend and pipeline execution: `backend/` and `docs/`
-- Infrastructure and DevOps: `infrastructure/` and `docs/`
-
-Documentation should cover local setup, API behavior, authentication,
-environment variables, deployment procedures, monitoring, and troubleshooting.
-
 ## Future Features
 
-- More deployment targets and IBM Cloud services
-- Richer pipeline history and log search
-- Role-based access and team workspaces
-- Notifications for failed or completed deployments
-- Rollbacks and deployment approvals
+* Full GitHub Actions pipeline (build → test → dockerize → push → deploy)
+* Frontend dashboard showing live pipeline/deployment status and logs
+* Environment variable & secrets management via GitHub Secrets
+* Deployment rollback support
