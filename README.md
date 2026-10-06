@@ -34,9 +34,11 @@ multi-stage build: Node.js builds the Vite application, and the generated
 
 ## Live Deployment
 
-The DeployX backend is currently deployed on Render.
+The DeployX frontend and backend are currently deployed on Render.
 
 **Backend URL:** https://deployx-backend-latest.onrender.com
+
+**Frontend URL:** https://deployx-frontend-latest.onrender.com
 
 ### Health Check
 
@@ -125,7 +127,7 @@ docker run --rm -e PORT=8080 -p 8080:8080 deployx-frontend
 ## Deployment Status
 
 * **Backend:** deployed on Render, pulling images from GHCR
-* **Frontend:** containerization scaffold is complete; deployment is not yet live
+* **Frontend:** deployed on Render at https://deployx-frontend-latest.onrender.com
 * **CI/CD pipeline:** manual build/push/deploy for now — GitHub Actions automation in progress
 
 ## Contribution Workflow
