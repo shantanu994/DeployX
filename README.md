@@ -12,11 +12,18 @@ GitHub Push → GitHub Webhook → CI/CD Pipeline → Build → Test → Dockeri
 
 ## Architecture
 
-[Placeholder — add diagram once finalized]
+The repository currently contains two independently runnable services:
+
+1. The React/Vite frontend provides the dashboard UI.
+2. The Node.js backend provides the API and webhook service foundation.
+
+Both services can be containerized independently. The frontend image uses a
+multi-stage build: Node.js builds the Vite application, and the generated
+`dist` directory is served as a single-page application by `serve`.
 
 ## Tech Stack
 
-* **Frontend:** React, Vite
+* **Frontend:** React 19, Vite 8, Tailwind CSS
 * **Backend:** Node.js
 * **Containerization:** Docker
 * **Container Registry:** GitHub Container Registry (GHCR)
@@ -27,9 +34,11 @@ GitHub Push → GitHub Webhook → CI/CD Pipeline → Build → Test → Dockeri
 
 ## Live Deployment
 
-The DeployX backend is currently deployed on Render.
+The DeployX frontend and backend are currently deployed on Render.
 
 **Backend URL:** https://deployx-backend-latest.onrender.com
+
+**Frontend URL:** https://deployx-frontend-latest.onrender.com
 
 ### Health Check
 
@@ -49,7 +58,7 @@ https://deployx-backend-latest.onrender.com/health
 
 ```text
 DeployX/
-├── frontend/          # React + Vite dashboard (Mitali)
+├── frontend/          # React + Vite dashboard and frontend Dockerfile (Mitali)
 ├── backend/           # Backend APIs, webhook handling (Sharva)
 ├── infrastructure/    # Deployment configs, infra notes (Shantanu)
 ├── .github/
@@ -62,7 +71,29 @@ DeployX/
 
 ## Local Setup
 
-[Placeholder — add once frontend and full backend are runnable end-to-end]
+### Prerequisites
+
+* Node.js 20 or later
+* npm
+* Docker (optional, for container builds)
+
+### Running the Frontend Locally
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The Vite development server prints the local URL, normally
+`http://localhost:5173`. The frontend also provides these npm scripts:
+
+```text
+npm run dev      Start the Vite development server
+npm run build    Create a production build in frontend/dist
+npm run lint     Run ESLint
+npm run preview  Preview the production build locally
+```
 
 ### Running the Backend Locally
 
@@ -76,10 +107,27 @@ Server runs on `http://localhost:3000` by default (or `$PORT` if set).
 * `GET /` → placeholder response
 * `GET /health` → returns `OK`, used for deployment health checks
 
+### Building and Running the Frontend Container
+
+The frontend Dockerfile builds the application in a Node.js build stage and
+serves the resulting static files in a second Node.js stage:
+
+```bash
+docker build -t deployx-frontend ./frontend
+docker run --rm -p 3000:3000 deployx-frontend
+```
+
+The container listens on port `3000`. Set the `PORT` environment variable when
+the hosting platform provides a different port:
+
+```bash
+docker run --rm -e PORT=8080 -p 8080:8080 deployx-frontend
+```
+
 ## Deployment Status
 
 * **Backend:** deployed on Render, pulling images from GHCR
-* **Frontend:** not yet deployed
+* **Frontend:** deployed on Render at https://deployx-frontend-latest.onrender.com
 * **CI/CD pipeline:** manual build/push/deploy for now — GitHub Actions automation in progress
 
 ## Contribution Workflow
@@ -92,6 +140,6 @@ Server runs on `http://localhost:3000` by default (or `$PORT` if set).
 ## Future Features
 
 * Full GitHub Actions pipeline (build → test → dockerize → push → deploy)
-* Frontend dashboard showing live pipeline/deployment status and logs
+* Replace the current frontend scaffold with a dashboard showing live pipeline/deployment status and logs
 * Environment variable & secrets management via GitHub Secrets
 * Deployment rollback support
