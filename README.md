@@ -1,83 +1,112 @@
 # DeployX
 
-A cloud-based CI/CD platform that automatically builds, tests, containerizes, and deploys applications from a connected GitHub repository to the cloud — with build/deployment status visible on a live dashboard.
+DeployX is a work-in-progress cloud CI/CD platform. The repository currently
+contains a React/Vite frontend scaffold and a small Express backend foundation.
+The planned product will connect a GitHub repository to an automated
+build-and-deployment pipeline, but webhook processing, pipeline execution, and
+the deployment dashboard are not implemented yet.
 
-## Problem Statement
+## Current implementation
 
-Setting up CI/CD manually for a small project is repetitive and error-prone — developers often end up SSH-ing into servers, manually building Docker images, and pushing updates by hand. DeployX automates this end-to-end: connect a repo, push code, and the pipeline handles build, test, containerization, and deployment automatically.
+### Frontend
 
-## Project Workflow
+The frontend is a Vite-powered React application. It currently displays the
+starter interface with:
 
-GitHub Push → GitHub Webhook → CI/CD Pipeline → Build → Test → Dockerize → Push to Container Registry → Deploy → Status/Logs shown on Dashboard
+- A React/Vite hero section using the bundled `hero.png`, React, and Vite
+  assets.
+- A counter button implemented with React state.
+- Links to Vite and React documentation and the Vite community.
+- Responsive styling with light and dark color-scheme support.
+- Tailwind CSS configured through the Vite plugin, although the current
+  interface is primarily styled with `src/index.css` and `src/App.css`.
 
-## Architecture
+The frontend is rendered from `src/main.jsx` in `StrictMode`. Its document title
+is currently `frontend` in `index.html`.
 
-The repository currently contains two independently runnable services:
+### Backend
 
-1. The React/Vite frontend provides the dashboard UI.
-2. The Node.js backend provides the API and webhook service foundation.
+The backend is an Express application configured with CORS, JSON request-body
+parsing, and `dotenv` environment loading. It currently exposes:
 
-Both services can be containerized independently. The frontend image uses a
-multi-stage build: Node.js builds the Vite application, and the generated
-`dist` directory is served as a single-page application by `serve`.
+| Method | Path | Response |
+| --- | --- | --- |
+| `GET` | `/` | A placeholder DeployX backend message |
+| `GET` | `/health` | Plain-text `OK` |
 
-## Tech Stack
+Unknown routes return Express's standard `404` response. The server listens on
+`0.0.0.0` and uses the `PORT` environment variable when set, or port `3000`
+otherwise.
 
-* **Frontend:** React 19, Vite 8, Tailwind CSS
-* **Backend:** Node.js
-* **Containerization:** Docker
-* **Container Registry:** GitHub Container Registry (GHCR)
-* **Cloud Deployment:** Render
-* **CI/CD:** GitHub Actions
+## Planned workflow
 
-> Note: this project is not tied to a specific cloud provider — GHCR + Render were chosen for free, card-free deployment during development. The infrastructure setup is portable to other providers if needed later.
+The intended workflow is:
 
-## Live Deployment
+```text
+GitHub push
+  -> GitHub webhook
+  -> build
+  -> test
+  -> Docker image
+  -> container registry
+  -> deployment
+  -> dashboard status and logs
+```
 
-The DeployX frontend and backend are currently deployed on Render.
+This workflow is not wired up yet. There are currently no tracked GitHub
+Actions workflow definitions, webhook routes, pipeline runner, registry
+integration, or deployment automation in the repository.
 
-**Backend URL:** https://deployx-backend-latest.onrender.com
+## Technology
 
-**Frontend URL:** https://deployx-frontend-latest.onrender.com
+- **Frontend:** React 19, Vite 8, Tailwind CSS 4
+- **Backend:** Node.js, Express 5
+- **Backend middleware:** CORS and dotenv
+- **Testing:** Node's built-in test runner and Supertest
+- **Containerization:** Dockerfiles for the frontend and backend
+- **Planned deployment:** GitHub Container Registry and Render
 
-### Health Check
+GHCR and Render are the intended development deployment targets, but the
+repository does not currently contain provider-specific configuration or
+GitHub Actions automation.
 
-You can verify that the backend is running using:
-
-https://deployx-backend-latest.onrender.com/health
-
-## Team
-
-| Member   | Role                          |
-| -------- | ----------------------------- |
-| Mitali   | Frontend + Cloud Integration  |
-| Sharva   | Backend + CI/CD Pipeline      |
-| Shantanu | Cloud Infrastructure + DevOps |
-
-## Repository Structure
+## Repository structure
 
 ```text
 DeployX/
-├── frontend/          # React + Vite dashboard and frontend Dockerfile (Mitali)
-├── backend/           # Backend APIs, webhook handling (Sharva)
-├── infrastructure/    # Deployment configs, infra notes (Shantanu)
+├── frontend/
+│   ├── public/          # Favicon and SVG icon sprite
+│   ├── src/             # React entry point, UI, styles, and image assets
+│   ├── Dockerfile       # Multi-stage frontend image
+│   ├── eslint.config.js
+│   ├── package.json
+│   └── vite.config.js   # React and Tailwind Vite plugins
+├── backend/
+│   ├── tests/           # HTTP tests for the current Express endpoints
+│   ├── Dockerfile       # Backend container definition
+│   ├── package.json
+│   └── server.js        # Express application and route definitions
 ├── .github/
-│   └── workflows/     # CI/CD pipeline definitions (shared)
-├── docs/              # Architecture notes, setup guides (all)
+│   └── workflows/       # Reserved for future CI/CD workflows
+├── docs/                # Reserved for project documentation
+├── infrastructure/      # Reserved for deployment and infrastructure files
 ├── .gitignore
-├── README.md
-└── LICENSE
+├── LICENSE
+└── README.md
 ```
 
-## Local Setup
+The `docs/`, `infrastructure/`, and `.github/workflows/` directories currently
+contain placeholders rather than implementation files.
+
+## Local development
 
 ### Prerequisites
 
-* Node.js 20 or later
-* npm
-* Docker (optional, for container builds)
+- Node.js 20 or later
+- npm
+- Docker (optional)
 
-### Running the Frontend Locally
+### Run the frontend
 
 ```bash
 cd frontend
@@ -85,61 +114,95 @@ npm install
 npm run dev
 ```
 
-The Vite development server prints the local URL, normally
-`http://localhost:5173`. The frontend also provides these npm scripts:
+Vite normally serves the application at
+[`http://localhost:5173`](http://localhost:5173). The available frontend
+scripts are:
 
 ```text
-npm run dev      Start the Vite development server
+npm run dev      Start the Vite development server with HMR
 npm run build    Create a production build in frontend/dist
 npm run lint     Run ESLint
 npm run preview  Preview the production build locally
 ```
 
-### Running the Backend Locally
+### Run and test the backend
 
 ```bash
 cd backend
-node server.js
+npm install
+npm start
 ```
 
-Server runs on `http://localhost:3000` by default (or `$PORT` if set).
+The backend runs at [`http://localhost:3000`](http://localhost:3000) by
+default. To use another port:
 
-* `GET /` → placeholder response
-* `GET /health` → returns `OK`, used for deployment health checks
+```bash
+set PORT=8080
+npm start
+```
 
-### Building and Running the Frontend Container
+On PowerShell, use `$env:PORT=8080` instead.
 
-The frontend Dockerfile builds the application in a Node.js build stage and
-serves the resulting static files in a second Node.js stage:
+Run the backend tests with:
+
+```bash
+npm test
+```
+
+The tests verify the root response, the health check, and the `404` response
+for an unknown route.
+
+## Docker
+
+### Frontend image
+
+The frontend Dockerfile uses a two-stage build. The first stage runs
+`npm run build`; the second stage serves `dist` with the `serve` package.
 
 ```bash
 docker build -t deployx-frontend ./frontend
 docker run --rm -p 3000:3000 deployx-frontend
 ```
 
-The container listens on port `3000`. Set the `PORT` environment variable when
-the hosting platform provides a different port:
+The container uses port `3000` by default and honors `PORT`:
 
 ```bash
 docker run --rm -e PORT=8080 -p 8080:8080 deployx-frontend
 ```
 
-## Deployment Status
+### Backend image
 
-* **Backend:** deployed on Render, pulling images from GHCR
-* **Frontend:** deployed on Render at https://deployx-frontend-latest.onrender.com
-* **CI/CD pipeline:** manual build/push/deploy for now — GitHub Actions automation in progress
+The backend Dockerfile declares port `3000` and starts `server.js`:
 
-## Contribution Workflow
+```bash
+docker build -t deployx-backend ./backend
+docker run --rm -p 3000:3000 deployx-backend
+```
 
-1. Branch from `develop` using `feature/<short-name>`
-2. Commit using conventional prefixes (`feat:`, `fix:`, `docs:`, `infra:`, `docker:`, `chore:`)
-3. Open a PR into `develop`; get at least 1 review
-4. `develop` merges into `main` at stable milestones
+Before using the backend image in a deployment, ensure its runtime
+dependencies are installed in the image. The current Dockerfile copies
+`server.js` but does not yet copy `package.json` or run `npm install`.
 
-## Future Features
+## Deployment status
 
-* Full GitHub Actions pipeline (build → test → dockerize → push → deploy)
-* Replace the current frontend scaffold with a dashboard showing live pipeline/deployment status and logs
-* Environment variable & secrets management via GitHub Secrets
-* Deployment rollback support
+The repository does not currently provide reproducible deployment manifests or
+an automated CI/CD workflow. Any hosted frontend or backend deployment must be
+configured separately from the files in this repository.
+
+## Contribution workflow
+
+1. Branch from `develop` using `feature/<short-name>`.
+2. Use conventional commit prefixes such as `feat:`, `fix:`, `docs:`,
+   `infra:`, `docker:`, and `chore:`.
+3. Open a pull request into `develop` and obtain at least one review.
+4. Merge `develop` into `main` at stable milestones.
+
+## Roadmap
+
+- Replace the frontend starter screen with a pipeline and deployment dashboard.
+- Add GitHub webhook handling and repository configuration.
+- Implement build, test, Dockerization, registry push, and deployment jobs.
+- Add GitHub Actions automation.
+- Display live pipeline status and logs.
+- Add environment-variable and secrets management through GitHub Secrets.
+- Add deployment rollback support.
