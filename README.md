@@ -108,11 +108,23 @@ contain placeholders rather than implementation files.
 
 ### Run the frontend
 
+Start the backend first (see below), then:
+
 ```bash
 cd frontend
 npm install
+cp .env.example .env    # on Windows PowerShell: copy .env.example .env
 npm run dev
 ```
+
+`.env` sets the backend address:
+
+```text
+VITE_API_URL=http://localhost:3000
+```
+
+If the backend runs on another port or host, change this value and restart the
+dev server, because Vite reads `.env` only at startup.
 
 Vite normally serves the application at
 [`http://localhost:5173`](http://localhost:5173). The available frontend
@@ -199,7 +211,7 @@ configured separately from the files in this repository.
 
 ## Roadmap
 
-- Replace the frontend starter screen with a pipeline and deployment dashboard.
+- Add real dashboard authentication (backend login endpoint and frontend integration).
 - Add GitHub webhook handling and repository configuration.
 - Implement build, test, Dockerization, registry push, and deployment jobs.
 - Add GitHub Actions automation.
