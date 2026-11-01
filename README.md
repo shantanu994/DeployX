@@ -10,19 +10,25 @@ the deployment dashboard are not implemented yet.
 
 ### Frontend
 
-The frontend is a Vite-powered React application. It currently displays the
-starter interface with:
+The frontend is a React + Vite dashboard styled with Tailwind CSS (through the
+`@tailwindcss/vite` plugin) and routed with React Router. It talks to the
+backend REST API.
 
-- A React/Vite hero section using the bundled `hero.png`, React, and Vite
-  assets.
-- A counter button implemented with React state.
-- Links to Vite and React documentation and the Vite community.
-- Responsive styling with light and dark color-scheme support.
-- Tailwind CSS configured through the Vite plugin, although the current
-  interface is primarily styled with `src/index.css` and `src/App.css`.
+Pages:
 
-The frontend is rendered from `src/main.jsx` in `StrictMode`. Its document title
-is currently `frontend` in `index.html`.
+- **Sign in** - gate in front of the dashboard.
+- **Dashboard** - summary metrics, recent pipeline runs and active deployments.
+- **Pipelines** - pick a repository and run its pipeline; view runs with
+  per-stage status; cancel or retry a run; open its logs.
+- **Deployments** - deployment history with environment, version, live URL and
+  rollback.
+- **Logs** - pick a run, filter log lines, and auto-refresh every few seconds.
+
+Source layout: `src/App.jsx` (layout, routes, protected pages), `src/pages.jsx`
+(all pages), `src/api.js` (every backend call), `src/auth.jsx` (sign-in state).
+
+The sign-in screen is currently UI-only. The backend has no login endpoint, so
+any email and password are accepted.
 
 ### Backend
 
@@ -108,11 +114,23 @@ contain placeholders rather than implementation files.
 
 ### Run the frontend
 
+Start the backend first (see below), then:
+
 ```bash
 cd frontend
 npm install
+cp .env.example .env    # on Windows PowerShell: copy .env.example .env
 npm run dev
 ```
+
+`.env` sets the backend address:
+
+```text
+VITE_API_URL=http://localhost:3000
+```
+
+If the backend runs on another port or host, change this value and restart the
+dev server, because Vite reads `.env` only at startup.
 
 Vite normally serves the application at
 [`http://localhost:5173`](http://localhost:5173). The available frontend
@@ -199,7 +217,7 @@ configured separately from the files in this repository.
 
 ## Roadmap
 
-- Replace the frontend starter screen with a pipeline and deployment dashboard.
+- Add real dashboard authentication (backend login endpoint and frontend integration).
 - Add GitHub webhook handling and repository configuration.
 - Implement build, test, Dockerization, registry push, and deployment jobs.
 - Add GitHub Actions automation.
