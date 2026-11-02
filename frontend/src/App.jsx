@@ -1,29 +1,38 @@
 import { BrowserRouter, Routes, Route, Navigate, NavLink, Outlet } from 'react-router-dom'
-import { AuthProvider, useAuth } from './auth'
+import { AuthProvider } from './auth'
+import { useAuth } from './auth-context'
 import { Login, Dashboard, Pipelines, Deployments, Logs } from './pages'
 
 function Layout() {
   const { user, logout } = useAuth()
   const link = ({ isActive }) =>
-    `rounded px-3 py-1.5 text-sm ${isActive ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-200'}`
+    `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+      isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-white/10 hover:text-white'
+    }`
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-2 px-4 py-3">
-          <span className="mr-4 text-lg font-bold text-blue-700">DeployX</span>
-          <nav className="flex flex-wrap gap-1">
-            <NavLink to="/" end className={link}>Dashboard</NavLink>
-            <NavLink to="/pipelines" className={link}>Pipelines</NavLink>
-            <NavLink to="/deployments" className={link}>Deployments</NavLink>
-            <NavLink to="/logs" className={link}>Logs</NavLink>
-          </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm text-slate-500">
-            <span>{user.email}</span>
-            <button onClick={logout} className="rounded border border-slate-300 px-3 py-1 hover:bg-slate-100">Sign out</button>
-          </div>
+    <div className="min-h-screen bg-slate-950 lg:flex">
+      <aside className="flex w-full flex-col border-b border-white/10 bg-slate-950 px-4 py-4 lg:fixed lg:inset-y-0 lg:w-64 lg:border-b-0 lg:border-r lg:px-5 lg:py-7">
+        <div className="mb-8 flex items-center gap-3 px-2">
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-blue-500 text-lg font-black text-white shadow-lg shadow-blue-500/25">D</div>
+          <div><p className="text-lg font-bold tracking-tight text-white">DeployX</p><p className="text-xs text-slate-500">Ship with confidence</p></div>
         </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-4 py-6"><Outlet /></main>
+        <nav className="flex gap-1 overflow-x-auto lg:block lg:space-y-2">
+          <NavLink to="/" end className={link}><span>▦</span>Dashboard</NavLink>
+          <NavLink to="/pipelines" className={link}><span>⇄</span>Pipelines</NavLink>
+          <NavLink to="/deployments" className={link}><span>↗</span>Deployments</NavLink>
+          <NavLink to="/logs" className={link}><span>≡</span>Logs</NavLink>
+        </nav>
+        <div className="mt-auto hidden border-t border-white/10 pt-5 lg:block">
+          <div className="mb-4 flex items-center gap-3 px-2">
+            <div className="grid h-9 w-9 place-items-center rounded-full bg-blue-500/20 text-sm font-bold text-blue-300">{user.email[0].toUpperCase()}</div>
+            <div className="min-w-0"><p className="truncate text-sm font-medium text-white">{user.email}</p><p className="text-xs text-slate-500">Workspace owner</p></div>
+          </div>
+          <button onClick={logout} className="w-full rounded-xl px-3 py-2 text-left text-sm text-slate-400 transition hover:bg-white/10 hover:text-white">Sign out</button>
+        </div>
+      </aside>
+      <main className="min-h-screen flex-1 bg-slate-50 lg:ml-64">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-10 lg:py-9"><Outlet /></div>
+      </main>
     </div>
   )
 }
