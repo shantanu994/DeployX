@@ -1,17 +1,13 @@
 FROM node:20-alpine
-
 WORKDIR /app
 
-# Install production dependencies
+# Copy dependency files first so Docker can cache the install step
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
-# Copy application source code
+# Copy the rest of the backend code
 COPY . .
 
-EXPOSE 3000
-
-ENV PORT=3000
 ENV NODE_ENV=production
-
-CMD ["npm", "start"]
+EXPOSE 3000
+CMD ["node", "server.js"]
