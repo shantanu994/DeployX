@@ -30,6 +30,26 @@ Source layout: `src/App.jsx` (layout, routes, protected pages), `src/pages.jsx`
 The sign-in screen is currently UI-only. The backend has no login endpoint, so
 any email and password are accepted.
 
+### Completed work so far
+
+The following work has been completed in the repository:
+
+- Added the initial React/Vite frontend structure and Tailwind CSS setup.
+- Built the dashboard layout with protected navigation and sign-in state.
+- Added Dashboard, Pipelines, Deployments, and Logs pages.
+- Added frontend API helpers and connected the pages to the backend API
+  contract.
+- Added the `VITE_API_URL` environment variable example for local frontend
+  development.
+- Improved dashboard styling and layout.
+- Split authentication state into a dedicated auth context.
+- Added the initial Express backend with CORS, JSON parsing, dotenv support,
+  configurable `PORT`, and `/health`.
+- Added backend tests for the root endpoint, health endpoint, and unknown
+  routes.
+- Added frontend and backend Dockerfiles as the starting point for container
+  deployment.
+
 ### Backend
 
 The backend is an Express application configured with CORS, JSON request-body
@@ -61,7 +81,9 @@ GitHub push
 
 This workflow is not wired up yet. There are currently no tracked GitHub
 Actions workflow definitions, webhook routes, pipeline runner, registry
-integration, or deployment automation in the repository.
+integration, or deployment automation in the repository. The frontend pages
+currently display the planned dashboard experience and use the available API
+contract; the backend does not yet provide real pipeline or deployment data.
 
 ## Technology
 
