@@ -1,10 +1,10 @@
 # DeployX
 
 DeployX is a work-in-progress cloud CI/CD platform. The repository currently
-contains a React/Vite frontend scaffold and a small Express backend foundation.
-The planned product will connect a GitHub repository to an automated
-build-and-deployment pipeline, but webhook processing, pipeline execution, and
-the deployment dashboard are not implemented yet.
+contains a React/Vite frontend dashboard and a small Express backend
+foundation. The planned product will connect a GitHub repository to an
+automated build-and-deployment pipeline, but webhook processing, pipeline
+execution, and live deployment data are not implemented yet.
 
 ## Current implementation
 
@@ -29,6 +29,33 @@ Source layout: `src/App.jsx` (layout, routes, protected pages), `src/pages.jsx`
 
 The sign-in screen is currently UI-only. The backend has no login endpoint, so
 any email and password are accepted.
+
+### Completed work so far
+
+The following work has been completed in the repository:
+
+- Added the initial React/Vite frontend structure and Tailwind CSS setup.
+- Built the dashboard layout with protected navigation and sign-in state.
+- Added Dashboard, Pipelines, Deployments, and Logs pages.
+- Added frontend API helpers and connected the pages to the backend API
+  contract.
+- Added the `VITE_API_URL` environment variable example for local frontend
+  development.
+- Improved dashboard styling and layout.
+- Split authentication state into a dedicated auth context.
+- Added the initial Express backend with CORS, JSON parsing, dotenv support,
+  configurable `PORT`, and `/health`.
+- Added backend tests for the root endpoint, health endpoint, and unknown
+  routes.
+- Added frontend and backend Dockerfiles as the starting point for container
+  deployment.
+- Added Docker ignore files for the frontend and backend to exclude local
+  dependencies, environment files, tests, logs, and Git metadata from build
+  contexts.
+- Updated the backend Docker image to install production dependencies with
+  `npm ci --omit=dev` and run with `NODE_ENV=production`.
+- Added GitHub Actions CI for backend tests and frontend lint/build checks on
+  pushes and pull requests targeting `develop` or `main`.
 
 ### Backend
 
@@ -59,9 +86,13 @@ GitHub push
   -> dashboard status and logs
 ```
 
-This workflow is not wired up yet. There are currently no tracked GitHub
-Actions workflow definitions, webhook routes, pipeline runner, registry
-integration, or deployment automation in the repository.
+This workflow is not wired up yet. There are currently no webhook routes,
+pipeline runner, registry integration, or deployment automation in the
+repository. GitHub Actions now validates backend tests and frontend lint/build
+checks, but it does not yet build or publish container images or deploy them.
+The frontend pages currently display the planned dashboard experience and use
+the available API contract; the backend does not yet provide real pipeline or
+deployment data.
 
 ## Technology
 
@@ -70,11 +101,12 @@ integration, or deployment automation in the repository.
 - **Backend middleware:** CORS and dotenv
 - **Testing:** Node's built-in test runner and Supertest
 - **Containerization:** Dockerfiles for the frontend and backend
+- **CI:** GitHub Actions for backend tests and frontend lint/build
 - **Planned deployment:** GitHub Container Registry and Render
 
 GHCR and Render are the intended development deployment targets, but the
-repository does not currently contain provider-specific configuration or
-GitHub Actions automation.
+repository does not currently contain provider-specific deployment
+configuration.
 
 ## Repository structure
 
@@ -83,17 +115,20 @@ DeployX/
 ├── frontend/
 │   ├── public/          # Favicon and SVG icon sprite
 │   ├── src/             # React entry point, UI, styles, and image assets
+│   ├── .dockerignore
 │   ├── Dockerfile       # Multi-stage frontend image
 │   ├── eslint.config.js
 │   ├── package.json
 │   └── vite.config.js   # React and Tailwind Vite plugins
 ├── backend/
 │   ├── tests/           # HTTP tests for the current Express endpoints
+│   ├── .dockerignore
 │   ├── Dockerfile       # Backend container definition
 │   ├── package.json
 │   └── server.js        # Express application and route definitions
 ├── .github/
-│   └── workflows/       # Reserved for future CI/CD workflows
+│   └── workflows/
+│       └── ci.yml       # Backend tests and frontend lint/build checks
 ├── docs/                # Reserved for project documentation
 ├── infrastructure/      # Reserved for deployment and infrastructure files
 ├── .gitignore
@@ -101,8 +136,8 @@ DeployX/
 └── README.md
 ```
 
-The `docs/`, `infrastructure/`, and `.github/workflows/` directories currently
-contain placeholders rather than implementation files.
+The `docs/` and `infrastructure/` directories currently contain placeholders.
+The CI workflow is implemented, but deployment and release automation are not.
 
 ## Local development
 
@@ -190,22 +225,34 @@ docker run --rm -e PORT=8080 -p 8080:8080 deployx-frontend
 
 ### Backend image
 
-The backend Dockerfile declares port `3000` and starts `server.js`:
+The backend Dockerfile installs production dependencies, declares port `3000`,
+and starts `server.js`:
 
 ```bash
 docker build -t deployx-backend ./backend
 docker run --rm -p 3000:3000 deployx-backend
 ```
 
-Before using the backend image in a deployment, ensure its runtime
-dependencies are installed in the image. The current Dockerfile copies
-`server.js` but does not yet copy `package.json` or run `npm install`.
+The backend build context excludes `node_modules`, environment files, tests,
+logs, and Git metadata through `backend/.dockerignore`.
+
+### Continuous integration
+
+The workflow in `.github/workflows/ci.yml` runs for pushes and pull requests
+targeting `develop` or `main`. It:
+
+- Installs backend dependencies and runs `npm test`.
+- Installs frontend dependencies, runs `npm run lint`, and runs
+  `npm run build`.
+- Uses Node.js 20 and supplies `VITE_API_URL` during the frontend build.
 
 ## Deployment status
 
-The repository does not currently provide reproducible deployment manifests or
-an automated CI/CD workflow. Any hosted frontend or backend deployment must be
-configured separately from the files in this repository.
+The repository now has production-oriented Docker configuration and automated
+CI validation. It does not yet provide reproducible deployment manifests,
+container registry publishing, or automatic deployment. Any hosted frontend or
+backend deployment must still be configured separately from the files in this
+repository.
 
 ## Contribution workflow
 
