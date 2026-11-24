@@ -63,3 +63,30 @@ test("POST /api/deployments/:id/rollback returns 404 for nonexistent deployment"
   const response = await request(app).post("/api/deployments/nonexistent-dep/rollback");
   assert.equal(response.status, 404);
 });
+
+test("POST /api/deployments/:id/rollback rolls back from active deployment when previous exists", async () => {
+  const prevDep = store.createDeployment({
+    pipelineId: "pipe-prev",
+    repoId: "repo-rollback-ui",
+    repoName: "DeployX-org/ui-rollback",
+    environment: "production",
+    commitHash: "good111",
+    status: "superseded"
+  });
+
+  const activeDep = store.createDeployment({
+    pipelineId: "pipe-curr",
+    repoId: "repo-rollback-ui",
+    repoName: "DeployX-org/ui-rollback",
+    environment: "production",
+    commitHash: "bad222",
+    status: "active"
+  });
+
+  // Frontend UI triggers rollback passing the active deployment's ID
+  const response = await request(app).post(`/api/deployments/${activeDep.id}/rollback`);
+  assert.equal(response.status, 200);
+  assert.equal(response.body.deployment.commitHash, prevDep.commitHash);
+  assert.equal(response.body.deployment.status, "active");
+  assert.equal(response.body.revertedFrom, activeDep.id);
+});

@@ -45,7 +45,10 @@ The backend engine for **DeployX**, an automated cloud CI/CD platform. Built wit
 ```text
 backend/
 ├── src/
+│   ├── middleware/
+│   │   └── authMiddleware.js     # HS256 JWT generation & Bearer verification
 │   ├── routes/
+│   │   ├── authRoutes.js         # /api/auth (login, register, me, logout)
 │   │   ├── dashboardRoutes.js    # /api/dashboard/stats
 │   │   ├── deploymentRoutes.js   # /api/deployments & rollback
 │   │   ├── pipelineRoutes.js     # /api/pipelines, logs & SSE stream
@@ -57,6 +60,8 @@ backend/
 │   │   └── pipelineService.js    # CI/CD pipeline stage execution
 │   └── store.js                  # In-memory store with seeded demo data
 ├── tests/
+│   ├── auth.test.js
+│   ├── cors.test.js
 │   ├── dashboard.test.js
 │   ├── deployments.test.js
 │   ├── health.test.js
@@ -79,11 +84,22 @@ backend/
 | `GET` | `/` | Backend operational check |
 | `GET` | `/health` | Health check (`OK`) |
 
+### Authentication
+Default demo account: `admin@deployx.dev` / `admin123`
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/register` | Register a new user account (alias `/api/auth/signup`), returns `{ token, user }` |
+| `POST` | `/api/auth/login` | Sign in with `{ email, password }` (alias `/api/auth/signin`), returns `{ token, user }` |
+| `GET` | `/api/auth/me` | Get authenticated user profile (requires `Authorization: Bearer <token>`) |
+| `POST` | `/api/auth/logout` | Revoke the current Bearer token (requires `Authorization: Bearer <token>`) |
+
 ### GitHub Webhooks
 | Method | Endpoint | Description |
 |---|---|---|
-| `POST` | `/api/webhooks/github` | Ingests GitHub webhook events (`push`, `ping`) with optional HMAC `X-Hub-Signature-256` validation |
-| `POST` | `/webhook` | Alias for webhook ingestion |
+| `POST` | `/webhooks/github` | Ingests GitHub webhook events (`push`, `ping`) and verifies `X-Hub-Signature-256` against `GITHUB_WEBHOOK_SECRET` |
+| `POST` | `/api/webhooks/github` | Alias for `/webhooks/github` |
+| `POST` | `/webhook/github` | Alias for `/webhooks/github` |
 
 ### Dashboard & Metrics
 | Method | Endpoint | Description |
@@ -126,6 +142,18 @@ backend/
 
 ---
 
+## Environment Variables
+
+See `.env.example` for reference:
+- `PORT` — Listening port (defaults to `3000`)
+- `NODE_ENV` — `development` | `production` | `test`
+- `CORS_ORIGIN` — Comma-separated allowed frontend origin URL(s)
+- `GITHUB_WEBHOOK_SECRET` — Secret used to verify GitHub `X-Hub-Signature-256` headers
+- `JWT_SECRET` — Secret used to sign HS256 JWT tokens
+- `DATA_FILE` — Optional JSON file path for MVP state persistence (defaults to in-memory)
+
+---
+
 ## Local Development
 
 ```bash
@@ -142,4 +170,4 @@ Runs at `http://localhost:3000` (or `PORT` environment variable).
 npm test
 ```
 
-Executes Node's built-in test runner across all 7 test suites (36 tests).
+Executes Node's built-in test runner across all 9 test suites (48 tests).

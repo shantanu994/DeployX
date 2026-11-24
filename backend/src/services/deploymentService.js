@@ -9,20 +9,32 @@ class DeploymentService {
     return store.getDeployment(id);
   }
 
-  rollback(targetDeploymentId) {
-    const targetDeployment = store.getDeployment(targetDeploymentId);
-    if (!targetDeployment) {
-      throw new Error(`Target deployment '${targetDeploymentId}' not found`);
+  rollback(deploymentId) {
+    const requested = store.getDeployment(deploymentId);
+    if (!requested) {
+      throw new Error(`Target deployment '${deploymentId}' not found`);
     }
 
     const currentDeployments = store.listDeployments({
-      repoId: targetDeployment.repoId,
-      environment: targetDeployment.environment
+      repoId: requested.repoId,
+      environment: requested.environment
     });
 
     const activeDeployment = currentDeployments.find((d) => d.status === "active");
-    if (activeDeployment && activeDeployment.id === targetDeployment.id) {
-      throw new Error("Target deployment is already the active deployment");
+    let targetDeployment = requested;
+
+    // If the caller passed the currently active deployment (as the dashboard UI does),
+    // automatically pick the most recent previous deployment to roll back to.
+    if (activeDeployment && activeDeployment.id === requested.id) {
+      const previous = currentDeployments.find(
+        (d) => d.id !== activeDeployment.id && d.status !== "failed"
+      );
+      if (!previous) {
+        throw new Error(
+          "Target deployment is already the active deployment and no previous deployment exists to roll back to"
+        );
+      }
+      targetDeployment = previous;
     }
 
     // Create a new rollback deployment

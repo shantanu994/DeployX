@@ -1,11 +1,76 @@
 const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
 
 class Store {
   constructor() {
     this.reset();
+    this._loadFromDisk();
+  }
+
+  _getDataFile() {
+    return process.env.DATA_FILE || null;
+  }
+
+  _loadFromDisk() {
+    const file = this._getDataFile();
+    if (!file) return;
+    try {
+      if (fs.existsSync(file)) {
+        const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+        if (Array.isArray(raw.repositories)) this.repositories = raw.repositories;
+        if (Array.isArray(raw.pipelines)) this.pipelines = raw.pipelines;
+        if (Array.isArray(raw.deployments)) this.deployments = raw.deployments;
+        if (Array.isArray(raw.secrets)) this.secrets = raw.secrets;
+        if (Array.isArray(raw.users)) this.users = raw.users;
+      } else {
+        this._saveToDisk();
+      }
+    } catch (err) {
+      console.error("Failed to load DATA_FILE, falling back to seeded defaults:", err.message);
+    }
+  }
+
+  _saveToDisk() {
+    const file = this._getDataFile();
+    if (!file) return;
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(
+        file,
+        JSON.stringify(
+          {
+            repositories: this.repositories,
+            pipelines: this.pipelines,
+            deployments: this.deployments,
+            secrets: this.secrets,
+            users: this.users
+          },
+          null,
+          2
+        )
+      );
+    } catch (err) {
+      console.error("Failed to persist DATA_FILE:", err.message);
+    }
   }
 
   reset() {
+    this.revokedTokens = new Set();
+
+    const defaultPassword = this._hashPassword("admin123");
+    this.users = [
+      {
+        id: "user-1",
+        name: "DeployX Admin",
+        email: "admin@deployx.dev",
+        role: "admin",
+        passwordHash: defaultPassword.hash,
+        passwordSalt: defaultPassword.salt,
+        createdAt: new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString()
+      }
+    ];
+
     this.repositories = [
       {
         id: "repo-1",
@@ -201,6 +266,7 @@ class Store {
       createdAt: new Date().toISOString()
     };
     this.repositories.push(newRepo);
+    this._saveToDisk();
     return newRepo;
   }
 
@@ -211,6 +277,7 @@ class Store {
       ...this.repositories[index],
       ...updates
     };
+    this._saveToDisk();
     return this.repositories[index];
   }
 
@@ -218,6 +285,7 @@ class Store {
     const index = this.repositories.findIndex((r) => r.id === id);
     if (index === -1) return false;
     this.repositories.splice(index, 1);
+    this._saveToDisk();
     return true;
   }
 
@@ -265,6 +333,7 @@ class Store {
       ]
     };
     this.pipelines.unshift(newPipeline);
+    this._saveToDisk();
     return newPipeline;
   }
 
@@ -275,6 +344,7 @@ class Store {
       ...this.pipelines[index],
       ...updates
     };
+    this._saveToDisk();
     return this.pipelines[index];
   }
 
@@ -328,6 +398,7 @@ class Store {
     };
 
     this.deployments.unshift(newDep);
+    this._saveToDisk();
     return newDep;
   }
 
@@ -344,6 +415,7 @@ class Store {
     if (existingIndex !== -1) {
       this.secrets[existingIndex].value = value;
       this.secrets[existingIndex].isSecret = isSecret;
+      this._saveToDisk();
       return this.secrets[existingIndex];
     }
 
@@ -356,6 +428,7 @@ class Store {
       createdAt: new Date().toISOString()
     };
     this.secrets.push(newSecret);
+    this._saveToDisk();
     return newSecret;
   }
 
@@ -364,7 +437,63 @@ class Store {
     this.secrets = this.secrets.filter(
       (s) => !(s.repoId === repoId && (s.key === key || s.id === key))
     );
-    return this.secrets.length < initialLength;
+    if (this.secrets.length < initialLength) {
+      this._saveToDisk();
+      return true;
+    }
+    return false;
+  }
+
+  // Users & Authentication
+  _hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+    const hash = crypto.scryptSync(password, salt, 64).toString("hex");
+    return { salt, hash };
+  }
+
+  verifyPassword(password, salt, expectedHash) {
+    const hashBuffer = crypto.scryptSync(password, salt, 64);
+    const expectedBuffer = Buffer.from(expectedHash, "hex");
+    if (hashBuffer.length !== expectedBuffer.length) return false;
+    return crypto.timingSafeEqual(hashBuffer, expectedBuffer);
+  }
+
+  findUserByEmail(email) {
+    if (!email) return null;
+    return this.users.find((u) => u.email.toLowerCase() === email.toLowerCase());
+  }
+
+  findUserById(id) {
+    return this.users.find((u) => u.id === id);
+  }
+
+  createUser({ email, password, name, role = "developer" }) {
+    const { salt, hash } = this._hashPassword(password);
+    const newUser = {
+      id: `user-${crypto.randomUUID().slice(0, 8)}`,
+      name: name || email.split("@")[0],
+      email: email.toLowerCase(),
+      role,
+      passwordHash: hash,
+      passwordSalt: salt,
+      createdAt: new Date().toISOString()
+    };
+    this.users.push(newUser);
+    this._saveToDisk();
+    return newUser;
+  }
+
+  sanitizeUser(user) {
+    if (!user) return null;
+    const { passwordHash, passwordSalt, ...safeUser } = user;
+    return safeUser;
+  }
+
+  revokeToken(token) {
+    this.revokedTokens.add(token);
+  }
+
+  isTokenRevoked(token) {
+    return this.revokedTokens.has(token);
   }
 }
 

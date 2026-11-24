@@ -8,12 +8,31 @@ const pipelineRoutes = require("./src/routes/pipelineRoutes");
 const deploymentRoutes = require("./src/routes/deploymentRoutes");
 const secretRoutes = require("./src/routes/secretRoutes");
 const dashboardRoutes = require("./src/routes/dashboardRoutes");
+const authRoutes = require("./src/routes/authRoutes");
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Enable CORS for frontend integration
-app.use(cors());
+// Restrict CORS to allowed frontend origins configured via CORS_ORIGIN
+function getAllowedOrigins() {
+  const raw = process.env.CORS_ORIGIN || "http://localhost:5173,http://127.0.0.1:5173";
+  return raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      // Allow non-browser / server-to-server calls without an Origin header (e.g., webhooks, curl, tests)
+      if (!origin) return callback(null, true);
+      if (getAllowedOrigins().includes(origin)) return callback(null, true);
+      return callback(null, false);
+    },
+    credentials: true
+  })
+);
 
 // Parse JSON request bodies while capturing raw bytes for webhook signature verification
 app.use(
@@ -40,7 +59,9 @@ app.get("/health", (req, res) => {
 });
 
 // Mount CI/CD platform API routes
+app.use("/api/auth", authRoutes);
 app.use("/api/webhooks", webhookRoutes);
+app.use("/webhooks", webhookRoutes);
 app.use("/webhook", webhookRoutes); // Alias for GitHub webhook configurations
 app.use("/api/repositories", repositoryRoutes);
 app.use("/api/repositories", secretRoutes);
