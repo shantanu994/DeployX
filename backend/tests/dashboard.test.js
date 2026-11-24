@@ -15,4 +15,13 @@ test("GET /api/dashboard/stats returns aggregate metrics and lists", async () =>
 
   assert.ok(Array.isArray(response.body.recentPipelines));
   assert.ok(Array.isArray(response.body.activeDeploymentsList));
+
+  const projectUrls = [
+    "https://ai-powered-cashflow-operating-system-for-cloud-kitch-1e8ljezix.vercel.app/",
+    "https://personalized-attendance-tracking.vercel.app/"
+  ];
+  for (const url of projectUrls) {
+    assert.ok(response.body.recentPipelines.some((pipeline) => pipeline.url === url));
+    assert.ok(response.body.activeDeploymentsList.some((deployment) => deployment.url === url));
+  }
 });
