@@ -1,10 +1,10 @@
 # DeployX
 
 DeployX is a work-in-progress cloud CI/CD platform. The repository currently
-contains a React/Vite frontend dashboard and a small Express backend
-foundation. The planned product will connect a GitHub repository to an
-automated build-and-deployment pipeline, but webhook processing, pipeline
-execution, and live deployment data are not implemented yet.
+contains a React/Vite frontend dashboard and an Express 5 backend API with an
+in-memory CI/CD pipeline engine, GitHub webhook ingestion, deployment rollback,
+and dashboard metrics. Real container execution, GHCR registry publishing, and
+automated Render deployment triggers are planned next.
 
 ## Current implementation
 
@@ -25,10 +25,11 @@ Pages:
 - **Logs** - pick a run, filter log lines, and auto-refresh every few seconds.
 
 Source layout: `src/App.jsx` (layout, routes, protected pages), `src/pages.jsx`
-(all pages), `src/api.js` (every backend call), `src/auth.jsx` (sign-in state).
+(all pages), `src/api.js` (every backend call), `src/auth.jsx` (sign-in state),
+`src/auth-context.jsx` (auth context).
 
-The sign-in screen is currently UI-only. The backend has no login endpoint, so
-any email and password are accepted.
+The sign-in screen is currently UI-only. The backend does not yet expose a
+login endpoint on `develop`, so any email and password are accepted in the UI.
 
 ### Completed work so far
 
@@ -43,15 +44,27 @@ The following work has been completed in the repository:
   development.
 - Improved dashboard styling and layout.
 - Split authentication state into a dedicated auth context.
-- Added the initial Express backend with CORS, JSON parsing, dotenv support,
-  configurable `PORT`, and `/health`.
-- Added backend tests for the root endpoint, health endpoint, and unknown
-  routes.
-- Added frontend and backend Dockerfiles as the starting point for container
+- Added the Express 5 backend with CORS, JSON parsing, raw-body capture for
+  webhooks, `dotenv` support, configurable `PORT`, `/` status check, and
+  `/health`.
+- Implemented the core backend CI/CD APIs using an in-memory store with seeded
+  demo data (`backend/src/store.js`):
+  - Repository configuration CRUD (`/api/repositories`)
+  - Per-repository environment variable and masked secret storage
+    (`/api/repositories/:repoId/env`)
+  - Event-driven 6-stage pipeline runner (`checkout`, `build`, `test`,
+    `docker_build`, `registry_push`, `deploy`) with manual triggers, cancel,
+    retry, stage logs, and Server-Sent Events (SSE) live streaming
+    (`/api/pipelines`)
+  - Deployment history and rollback state machine (`/api/deployments`)
+  - GitHub webhook ingestion (`/api/webhooks/github` and `/webhook/github`)
+    with `X-Hub-Signature-256` HMAC-SHA256 verification
+  - Aggregated dashboard stats endpoint (`/api/dashboard/stats`)
+- Added backend API documentation in `backend/README.md` and 36 automated tests
+  across 7 test suites (`dashboard`, `deployments`, `health`, `pipelines`,
+  `repositories`, `secrets`, `webhooks`).
+- Added frontend and backend Dockerfiles and `.dockerignore` files for container
   deployment.
-- Added Docker ignore files for the frontend and backend to exclude local
-  dependencies, environment files, tests, logs, and Git metadata from build
-  contexts.
 - Updated the backend Docker image to install production dependencies with
   `npm ci --omit=dev` and run with `NODE_ENV=production`.
 - Added GitHub Actions CI for backend tests and frontend lint/build checks on
@@ -59,16 +72,33 @@ The following work has been completed in the repository:
 
 ### Backend
 
-The backend is an Express application configured with CORS, JSON request-body
-parsing, and `dotenv` environment loading. It currently exposes:
+The backend is an Express 5 application configured with CORS, JSON request-body
+parsing (with raw buffer capture for webhook signature verification), and
+`dotenv` environment loading. It exposes:
 
-| Method | Path | Response |
+| Method | Path | Purpose |
 | --- | --- | --- |
-| `GET` | `/` | A placeholder DeployX backend message |
-| `GET` | `/health` | Plain-text `OK` |
+| `GET` | `/` | Backend operational message |
+| `GET` | `/health` | Plain-text `OK` health check |
+| `GET` | `/api/dashboard/stats` | Aggregated metrics, recent runs, and active deployments |
+| `GET`, `POST` | `/api/repositories` | List or connect repositories |
+| `GET`, `PUT`, `DELETE` | `/api/repositories/:id` | Read, update, or remove a repository |
+| `GET`, `POST` | `/api/repositories/:repoId/env` | List (masked) or set repository env vars/secrets |
+| `DELETE` | `/api/repositories/:repoId/env/:key` | Remove a repository env var or secret |
+| `GET`, `POST` | `/api/pipelines` | List pipeline runs or trigger a manual run |
+| `GET` | `/api/pipelines/:id` | Pipeline details and 6-stage statuses |
+| `GET` | `/api/pipelines/:id/logs` | Aggregated or stage-filtered logs (`?stage=`) |
+| `GET` | `/api/pipelines/:id/stream` | Server-Sent Events (SSE) live log & status stream |
+| `POST` | `/api/pipelines/:id/cancel` | Cancel a queued or running pipeline |
+| `POST` | `/api/pipelines/:id/retry` | Re-trigger an existing pipeline |
+| `GET` | `/api/deployments` | List deployments |
+| `GET` | `/api/deployments/:id` | Single deployment details |
+| `POST` | `/api/deployments/:id/rollback` | Roll back to a target deployment |
+| `POST` | `/api/webhooks/github` | GitHub `ping` / `push` webhook handler (alias `/webhook/github`) |
 
-Unknown routes return Express's standard `404` response. The server listens on
-`0.0.0.0` and uses the `PORT` environment variable when set, or port `3000`
+See [`backend/README.md`](backend/README.md) for full query parameter and
+payload details. Unknown routes return a JSON `404` response. The server listens
+on `0.0.0.0` and uses the `PORT` environment variable when set, or port `3000`
 otherwise.
 
 ## Planned workflow
@@ -86,20 +116,20 @@ GitHub push
   -> dashboard status and logs
 ```
 
-This workflow is not wired up yet. There are currently no webhook routes,
-pipeline runner, registry integration, or deployment automation in the
-repository. GitHub Actions now validates backend tests and frontend lint/build
-checks, but it does not yet build or publish container images or deploy them.
-The frontend pages currently display the planned dashboard experience and use
-the available API contract; the backend does not yet provide real pipeline or
-deployment data.
+The webhook route, pipeline state machine, simulated 6-stage runner, live log
+streaming, deployment rollback, and dashboard APIs are wired up end-to-end
+using an in-memory store. Actual execution of remote `git` clones, Docker
+image builds, GHCR image pushes, Render deployment hooks, and persistent
+database storage are not wired up yet. GitHub Actions validates backend tests
+and frontend lint/build checks on PRs and pushes, but does not yet publish
+container images or deploy them automatically.
 
 ## Technology
 
-- **Frontend:** React 19, Vite 8, Tailwind CSS 4
-- **Backend:** Node.js, Express 5
+- **Frontend:** React 19, Vite 8, Tailwind CSS 4, React Router
+- **Backend:** Node.js 20+, Express 5, native `node:crypto` & `node:events`
 - **Backend middleware:** CORS and dotenv
-- **Testing:** Node's built-in test runner and Supertest
+- **Testing:** Node's built-in test runner (`node:test`) and Supertest
 - **Containerization:** Dockerfiles for the frontend and backend
 - **CI:** GitHub Actions for backend tests and frontend lint/build
 - **Planned deployment:** GitHub Container Registry and Render
@@ -113,24 +143,38 @@ configuration.
 ```text
 DeployX/
 ├── frontend/
-│   ├── public/          # Favicon and SVG icon sprite
-│   ├── src/             # React entry point, UI, styles, and image assets
+│   ├── public/              # Favicon and SVG icon sprite
+│   ├── src/
+│   │   ├── api.js           # Backend REST API client
+│   │   ├── auth-context.jsx # React auth context
+│   │   ├── auth.jsx         # AuthProvider and session state
+│   │   ├── pages.jsx        # Login, Dashboard, Pipelines, Deployments, Logs
+│   │   ├── App.jsx          # Router and protected layout
+│   │   └── main.jsx         # Application entry point
 │   ├── .dockerignore
-│   ├── Dockerfile       # Multi-stage frontend image
+│   ├── .env.example
+│   ├── Dockerfile           # Multi-stage frontend image
 │   ├── eslint.config.js
 │   ├── package.json
-│   └── vite.config.js   # React and Tailwind Vite plugins
+│   └── vite.config.js       # React and Tailwind Vite plugins
 ├── backend/
-│   ├── tests/           # HTTP tests for the current Express endpoints
+│   ├── src/
+│   │   ├── routes/          # Express routers (dashboard, deployments, pipelines, repos, secrets, webhooks)
+│   │   ├── services/        # Pipeline runner & deployment rollback services
+│   │   └── store.js         # In-memory store with seeded demo data
+│   ├── tests/               # 7 test suites (36 HTTP & service tests)
 │   ├── .dockerignore
-│   ├── Dockerfile       # Backend container definition
+│   ├── .gitignore
+│   ├── Dockerfile           # Production backend container definition
 │   ├── package.json
-│   └── server.js        # Express application and route definitions
+│   ├── package-lock.json
+│   ├── README.md            # Backend API reference
+│   └── server.js            # Express application and route mounting
 ├── .github/
 │   └── workflows/
-│       └── ci.yml       # Backend tests and frontend lint/build checks
-├── docs/                # Reserved for project documentation
-├── infrastructure/      # Reserved for deployment and infrastructure files
+│       └── ci.yml           # Backend tests and frontend lint/build checks
+├── docs/                    # Reserved for project documentation
+├── infrastructure/          # Reserved for deployment and infrastructure files
 ├── .gitignore
 ├── LICENSE
 └── README.md
@@ -202,8 +246,9 @@ Run the backend tests with:
 npm test
 ```
 
-The tests verify the root response, the health check, and the `404` response
-for an unknown route.
+The test suite runs 36 tests across 7 files covering the health/root endpoints,
+GitHub webhooks, repository CRUD, environment variables/secrets masking,
+pipeline triggers/logs/cancel/retry, deployment rollback, and dashboard stats.
 
 ## Docker
 
@@ -225,8 +270,8 @@ docker run --rm -e PORT=8080 -p 8080:8080 deployx-frontend
 
 ### Backend image
 
-The backend Dockerfile installs production dependencies, declares port `3000`,
-and starts `server.js`:
+The backend Dockerfile installs production dependencies (`npm ci --omit=dev`),
+declares port `3000`, and starts `server.js`:
 
 ```bash
 docker build -t deployx-backend ./backend
@@ -265,9 +310,8 @@ repository.
 ## Roadmap
 
 - Add real dashboard authentication (backend login endpoint and frontend integration).
-- Add GitHub webhook handling and repository configuration.
-- Implement build, test, Dockerization, registry push, and deployment jobs.
-- Add GitHub Actions automation.
-- Display live pipeline status and logs.
-- Add environment-variable and secrets management through GitHub Secrets.
-- Add deployment rollback support.
+- Restrict CORS to the configured frontend origin and verify webhook signatures with an environment-configured secret.
+- Replace simulated pipeline stages with real build, test, Dockerization, GHCR push, and Render deployment workers.
+- Add persistent database storage to replace the in-memory MVP store.
+- Extend GitHub Actions automation to build/push Docker images and trigger deployments.
+- Wire real-time SSE log streaming into the frontend Logs view.
