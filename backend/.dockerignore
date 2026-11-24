@@ -1,4 +1,7 @@
 node_modules
+venv
+.venv
+data
 .env
 .env.*
 tests

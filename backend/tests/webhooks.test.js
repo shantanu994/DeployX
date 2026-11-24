@@ -116,3 +116,58 @@ test("POST /api/webhooks/github rejects invalid HMAC signature", async () => {
   assert.equal(response.status, 401);
   assert.equal(response.body.error, "Unauthorized");
 });
+
+test("POST /webhooks/github enforces GITHUB_WEBHOOK_SECRET from env var", async () => {
+  const prevSecret = process.env.GITHUB_WEBHOOK_SECRET;
+  process.env.GITHUB_WEBHOOK_SECRET = "env-super-secret-key";
+
+  try {
+    const payload = {
+      ref: "refs/heads/main",
+      after: "ef56789",
+      head_commit: { id: "ef56789", message: "feat: env secret webhook" },
+      repository: { full_name: "DeployX-org/frontend" }
+    };
+    const payloadString = JSON.stringify(payload);
+    const validSig =
+      "sha256=" +
+      crypto
+        .createHmac("sha256", process.env.GITHUB_WEBHOOK_SECRET)
+        .update(Buffer.from(payloadString))
+        .digest("hex");
+
+    // 1. Missing signature must return 401
+    const missingSigRes = await request(app)
+      .post("/webhooks/github")
+      .set("x-github-event", "push")
+      .set("Content-Type", "application/json")
+      .send(payloadString);
+    assert.equal(missingSigRes.status, 401);
+
+    // 2. Invalid signature must return 401
+    const badSigRes = await request(app)
+      .post("/webhooks/github")
+      .set("x-github-event", "push")
+      .set("x-hub-signature-256", "sha256=deadbeef")
+      .set("Content-Type", "application/json")
+      .send(payloadString);
+    assert.equal(badSigRes.status, 401);
+
+    // 3. Valid signature succeeds and triggers pipeline
+    const okRes = await request(app)
+      .post("/webhooks/github")
+      .set("x-github-event", "push")
+      .set("x-hub-signature-256", validSig)
+      .set("x-test-sync", "true")
+      .set("Content-Type", "application/json")
+      .send(payloadString);
+    assert.equal(okRes.status, 202);
+    assert.equal(okRes.body.status, "triggered");
+  } finally {
+    if (prevSecret === undefined) {
+      delete process.env.GITHUB_WEBHOOK_SECRET;
+    } else {
+      process.env.GITHUB_WEBHOOK_SECRET = prevSecret;
+    }
+  }
+});

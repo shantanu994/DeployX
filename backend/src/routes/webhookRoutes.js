@@ -30,13 +30,24 @@ function verifySignature(req, secret) {
 }
 
 /**
- * POST /api/webhooks/github
+ * POST /webhooks/github (and /api/webhooks/github)
  * Handles GitHub webhook push and ping events
  */
 router.post("/github", (req, res) => {
   const event = req.headers["x-github-event"] || "push";
   const signature = req.headers["x-hub-signature-256"];
+  const envSecret = process.env.GITHUB_WEBHOOK_SECRET;
   const body = req.body || {};
+
+  // When GITHUB_WEBHOOK_SECRET is configured, require and verify X-Hub-Signature-256 on all deliveries
+  if (envSecret) {
+    if (!verifySignature(req, envSecret)) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        message: "Missing or invalid GitHub webhook signature (X-Hub-Signature-256)"
+      });
+    }
+  }
 
   // Handle ping event
   if (event === "ping") {
@@ -68,8 +79,8 @@ router.post("/github", (req, res) => {
     });
   }
 
-  // If repository has a webhookSecret and a signature was provided, verify it
-  if (repo.webhookSecret && signature) {
+  // Fallback per-repo webhook secret check when global GITHUB_WEBHOOK_SECRET is not set
+  if (!envSecret && repo.webhookSecret && signature) {
     const isValid = verifySignature(req, repo.webhookSecret);
     if (!isValid) {
       return res.status(401).json({
