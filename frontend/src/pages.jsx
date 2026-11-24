@@ -3,20 +3,52 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { api } from './api'
 import { useAuth } from './auth-context'
 
-// Fetches on mount, then re-fetches every `ms` (live status).
+const COLD_START_MS = 65_000
+
 function usePoll(fn, ms = 5000, enabled = true) {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
-  const load = useCallback(() => {
-    fn().then((d) => { setData(d); setError('') }).catch((e) => setError(e.message))
-  }, [fn])
+  const [loading, setLoading] = useState(true)
+  const [warmingUp, setWarmingUp] = useState(true)
+  const [refresh, setRefresh] = useState(0)
+
   useEffect(() => {
-    load()
-    if (!enabled) return
-    const t = setInterval(load, ms)
-    return () => clearInterval(t)
-  }, [load, ms, enabled])
-  return { data, error, reload: load }
+    const timer = setTimeout(() => setWarmingUp(false), COLD_START_MS)
+    return () => clearTimeout(timer)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    let timer
+
+    const poll = async () => {
+      setLoading(true)
+      try {
+        const result = await fn()
+        if (active) {
+          setData(result)
+          setError('')
+        }
+      } catch (requestError) {
+        if (active) {
+          setError(requestError instanceof Error ? requestError.message : String(requestError))
+        }
+      } finally {
+        if (active) setLoading(false)
+      }
+
+      if (active && enabled) timer = setTimeout(poll, ms)
+    }
+
+    poll()
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [fn, ms, enabled, refresh])
+
+  const reload = useCallback(() => setRefresh((value) => value + 1), [])
+  return { data, error, loading, warmingUp, reload }
 }
 
 const STYLE = {
@@ -30,9 +62,27 @@ const Badge = ({ status }) => (
 )
 const when = (iso) => (iso ? new Date(iso).toLocaleString() : '-')
 const secs = (ms) => (ms != null ? `${Math.round(ms / 1000)}s` : '-')
-const Msg = ({ data, error }) =>
-  error ? <p className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">Could not reach the backend: {error}. Check that it is running and that VITE_API_URL in .env is correct.</p>
-  : !data ? <div className="flex items-center gap-3 py-8 text-sm text-slate-500"><span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />Loading data...</div> : null
+
+function DataState({ data, error, loading, warmingUp }) {
+  const hasData = data !== null
+  const configError = error.includes('VITE_API_URL')
+
+  if (!hasData && (loading || (error && !configError && warmingUp))) {
+    return (
+      <div role="status" className="flex items-center gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+        Waking up the server… the first request can take about a minute.
+      </div>
+    )
+  }
+
+  if (error) {
+    return <p role="alert" className={`rounded-xl border p-4 text-sm ${hasData ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-red-200 bg-red-50 text-red-700'}`}>{hasData ? 'Could not refresh data' : 'Could not load data'}: {error}. Check that the backend is available and VITE_API_URL is set correctly.</p>
+  }
+
+  return null
+}
+
 const Table = ({ head, children }) => (
   <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
     <table className="w-full min-w-[700px] text-left text-sm">
@@ -50,74 +100,96 @@ const PageHeader = ({ eyebrow, title, description, children }) => (
 )
 
 export function Login() {
-  const { user, login } = useAuth()
+  const { user, login, authError, authNotice, retrySession, clearSession } = useAuth()
   const nav = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
   if (user) return <Navigate to="/" replace />
-  const submit = async (e) => {
-    e.preventDefault()
+
+  const submit = async (event) => {
+    event.preventDefault()
     setBusy(true)
-    await login(email, password)
-    nav('/')
+    setError('')
+    try {
+      await login(email, password)
+      nav('/')
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : String(loginError))
+    } finally {
+      setBusy(false)
+    }
   }
+
   const input = 'w-full rounded border border-slate-300 px-3 py-2 focus:outline-2 focus:outline-blue-600'
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
       <form onSubmit={submit} className="w-full max-w-md space-y-5 rounded-3xl border border-white/10 bg-white p-8 shadow-2xl">
         <div className="mb-8"><div className="mb-6 grid h-12 w-12 place-items-center rounded-2xl bg-blue-600 text-xl font-black text-white">D</div><p className="mb-2 text-sm font-bold uppercase tracking-widest text-blue-600">Welcome back</p><h1 className="text-3xl font-bold tracking-tight">Sign in to DeployX</h1><p className="mt-2 text-sm text-slate-500">Your deployment control plane, in one place.</p></div>
+        {(error || authError) && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error || authError}</p>}
+        {authNotice && <p role="status" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{authNotice}</p>}
+        {authError && !error && (
+          <div className="flex gap-3 text-sm">
+            <button type="button" onClick={retrySession} className="font-semibold text-blue-700">Retry session check</button>
+            <button type="button" onClick={clearSession} className="font-semibold text-slate-600">Clear saved session</button>
+          </div>
+        )}
         <label className="block text-sm font-medium">Email
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className={input} />
+          <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} className={input} />
         </label>
         <label className="block text-sm font-medium">Password
-          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className={input} />
+          <input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} className={input} />
         </label>
         <button disabled={busy} className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50">
-          {busy ? 'Signing in...' : 'Sign in'}
+          {busy ? 'Waking up the server…' : 'Sign in'}
         </button>
-        <p className="text-xs text-slate-500">The backend has no login API yet, so any email and password works.</p>
+        {busy && <p role="status" className="text-center text-xs text-slate-500">The first request can take about a minute while the backend wakes up.</p>}
       </form>
     </div>
   )
 }
 
 export function Dashboard() {
-  const { data, error } = usePoll(api.getStats)
-  if (!data) return <Msg data={data} error={error} />
-  const m = data.metrics
-  const stats = [
-    ['Repositories', m.totalRepositories], ['Pipelines', m.totalPipelines], ['Success rate', m.successRate],
-    ['Failed', m.failedPipelines], ['Active deployments', m.activeDeployments], ['Avg duration', `${m.averagePipelineDurationSec}s`],
-  ]
+  const state = usePoll(api.getStats)
+  const { data } = state
+  const stats = data ? [
+    ['Repositories', data.metrics.totalRepositories], ['Pipelines', data.metrics.totalPipelines], ['Success rate', data.metrics.successRate],
+    ['Failed', data.metrics.failedPipelines], ['Active deployments', data.metrics.activeDeployments], ['Avg duration', `${data.metrics.averagePipelineDurationSec}s`],
+  ] : []
+
   return (
     <div className="space-y-8">
       <PageHeader eyebrow="Overview" title="Good morning, shipper." description="Here’s what’s happening across your delivery pipeline." />
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-        {stats.map(([k, v]) => (
-          <div key={k} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-2xl font-bold tracking-tight text-slate-950">{v}</div>
-            <div className="mt-1 text-xs font-medium text-slate-500">{k}</div>
-          </div>
-        ))}
-      </div>
-      <section className="space-y-2">
-        <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Recent pipeline runs</h2><Link to="/pipelines" className="text-sm font-semibold text-blue-600 hover:text-blue-700">View all →</Link></div>
-        <Table head={['Run', 'Repository', 'Branch', 'Status', 'Started']}>
-          {data.recentPipelines.map((p) => (
-            <tr key={p.id}><td>{p.id}</td><td>{p.repoName}</td><td>{p.branch}</td><td><Badge status={p.status} /></td><td>{when(p.startedAt)}</td></tr>
+      <DataState {...state} />
+      {data && <>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+          {stats.map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="text-2xl font-bold tracking-tight text-slate-950">{value}</div>
+              <div className="mt-1 text-xs font-medium text-slate-500">{label}</div>
+            </div>
           ))}
-        </Table>
-      </section>
-      <section className="space-y-2">
-        <h2 className="text-lg font-bold">Active deployments</h2>
-        <Table head={['Repository', 'Environment', 'Version', 'Live URL']}>
-          {data.activeDeploymentsList.map((d) => (
-            <tr key={d.id}><td>{d.repoName}</td><td>{d.environment}</td><td>{d.version}</td>
-              <td><a className="text-blue-700 underline" href={d.url} target="_blank" rel="noreferrer">{d.url}</a></td></tr>
-          ))}
-        </Table>
-      </section>
+        </div>
+        <section className="space-y-2">
+          <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Recent pipeline runs</h2><Link to="/pipelines" className="text-sm font-semibold text-blue-600 hover:text-blue-700">View all →</Link></div>
+          <Table head={['Run', 'Repository', 'Branch', 'Status', 'Started']}>
+            {data.recentPipelines.length ? data.recentPipelines.map((pipeline) => (
+              <tr key={pipeline.id}><td>{pipeline.id}</td><td>{pipeline.repoName}</td><td>{pipeline.branch}</td><td><Badge status={pipeline.status} /></td><td>{when(pipeline.startedAt)}</td></tr>
+            )) : <tr><td colSpan="5" className="text-center text-slate-500">No pipeline runs yet.</td></tr>}
+          </Table>
+        </section>
+        <section className="space-y-2">
+          <h2 className="text-lg font-bold">Active deployments</h2>
+          <Table head={['Repository', 'Environment', 'Version', 'Live URL']}>
+            {data.activeDeploymentsList.length ? data.activeDeploymentsList.map((deployment) => (
+              <tr key={deployment.id}><td>{deployment.repoName}</td><td>{deployment.environment}</td><td>{deployment.version}</td>
+                <td>{deployment.url ? <a className="text-blue-700 underline" href={deployment.url} target="_blank" rel="noreferrer">{deployment.url}</a> : '-'}</td></tr>
+            )) : <tr><td colSpan="4" className="text-center text-slate-500">No active deployments.</td></tr>}
+          </Table>
+        </section>
+      </>}
     </div>
   )
 }
@@ -127,39 +199,47 @@ export function Pipelines() {
   const repos = usePoll(api.getRepos, 60000, false)
   const [repoId, setRepoId] = useState('')
   const [note, setNote] = useState('')
-  const act = async (fn, okMsg) => {
-    try { await fn(); setNote(okMsg) } catch (e) { setNote(`Failed: ${e.message}`) }
+  const act = async (action, successMessage) => {
+    try {
+      await action()
+      setNote(successMessage)
+    } catch (actionError) {
+      setNote(`Action failed: ${actionError.message}`)
+    }
     runs.reload()
   }
   const chosen = repoId || repos.data?.[0]?.id
+
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="Delivery" title="Pipelines" description="Trigger builds, monitor stages, and inspect every run." />
+      <DataState {...repos} />
+      {repos.data && repos.data.length === 0 && <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">No repositories are connected yet. Connect a repository before running a pipeline.</p>}
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
-        <select value={chosen || ''} onChange={(e) => setRepoId(e.target.value)} className="rounded border border-slate-300 px-3 py-2">
-          {(repos.data || []).map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+        <select aria-label="Repository" value={chosen || ''} onChange={(event) => setRepoId(event.target.value)} className="rounded border border-slate-300 px-3 py-2">
+          {(repos.data || []).map((repository) => <option key={repository.id} value={repository.id}>{repository.name}</option>)}
         </select>
         <button disabled={!chosen} onClick={() => act(() => api.runPipeline(chosen), 'Pipeline started')} className={`${btn} bg-blue-600 hover:bg-blue-700`}>Run pipeline</button>
-        {note && <span className="text-slate-600">{note}</span>}
+        {note && <span role="status" className={note.startsWith('Action failed') ? 'text-red-700' : 'text-slate-600'}>{note}</span>}
       </div>
-      <Msg data={runs.data} error={runs.error || repos.error} />
+      <DataState {...runs} />
       {runs.data && (
         <Table head={['Run', 'Repository', 'Branch', 'Commit', 'Stages', 'Status', 'Duration', 'Started', '']}>
-          {runs.data.map((p) => (
-            <tr key={p.id}>
-              <td className="font-medium">{p.id}</td><td>{p.repoName}</td><td>{p.branch}</td>
-              <td className="font-mono">{p.commitHash}</td>
-              <td><div className="flex flex-wrap gap-1">{(p.stages || []).map((s) => (
-                <span key={s.id} title={s.status} className={`rounded px-1.5 py-0.5 text-xs ${STYLE[s.status] || 'bg-slate-100 text-slate-600'}`}>{s.name}</span>
+          {runs.data.length ? runs.data.map((pipeline) => (
+            <tr key={pipeline.id}>
+              <td className="font-medium">{pipeline.id}</td><td>{pipeline.repoName}</td><td>{pipeline.branch}</td>
+              <td className="font-mono">{pipeline.commitHash}</td>
+              <td><div className="flex flex-wrap gap-1">{(pipeline.stages || []).map((stage) => (
+                <span key={stage.id} title={stage.status} className={`rounded px-1.5 py-0.5 text-xs ${STYLE[stage.status] || 'bg-slate-100 text-slate-600'}`}>{stage.name}</span>
               ))}</div></td>
-              <td><Badge status={p.status} /></td><td>{secs(p.durationMs)}</td><td>{when(p.startedAt)}</td>
+              <td><Badge status={pipeline.status} /></td><td>{secs(pipeline.durationMs)}</td><td>{when(pipeline.startedAt)}</td>
               <td className="space-x-2 whitespace-nowrap">
-                <Link className="text-blue-700 underline" to={`/logs/${p.id}`}>Logs</Link>
-                {(p.status === 'running' || p.status === 'queued') && <button onClick={() => act(() => api.cancelPipeline(p.id), 'Cancelled')} className={`${btn} bg-slate-600`}>Cancel</button>}
-                {(p.status === 'failed' || p.status === 'cancelled') && <button onClick={() => act(() => api.retryPipeline(p.id), 'Retrying')} className={`${btn} bg-blue-600`}>Retry</button>}
+                <Link className="text-blue-700 underline" to={`/logs/${pipeline.id}`}>Logs</Link>
+                {(pipeline.status === 'running' || pipeline.status === 'queued') && <button onClick={() => act(() => api.cancelPipeline(pipeline.id), 'Pipeline cancelled')} className={`${btn} bg-slate-600`}>Cancel</button>}
+                {(pipeline.status === 'failed' || pipeline.status === 'cancelled') && <button onClick={() => act(() => api.retryPipeline(pipeline.id), 'Pipeline retry started')} className={`${btn} bg-blue-600`}>Retry</button>}
               </td>
             </tr>
-          ))}
+          )) : <tr><td colSpan="9" className="text-center text-slate-500">No pipeline runs yet. Start one with a connected repository.</td></tr>}
         </Table>
       )}
     </div>
@@ -167,27 +247,34 @@ export function Pipelines() {
 }
 
 export function Deployments() {
-  const { data, error, reload } = usePoll(api.getDeployments)
+  const state = usePoll(api.getDeployments)
+  const { data, reload } = state
   const [note, setNote] = useState('')
-  const rollback = async (d) => {
-    try { await api.rollback(d.id); setNote(`Rolled back ${d.repoName}`) } catch (e) { setNote(`Rollback failed: ${e.message}`) }
+  const rollback = async (deployment) => {
+    try {
+      await api.rollback(deployment.id)
+      setNote(`Rolled back ${deployment.repoName}`)
+    } catch (error) {
+      setNote(`Rollback failed: ${error.message}`)
+    }
     reload()
   }
+
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="Release management" title="Deployments" description="Track what’s live and safely roll back when needed." />
-      {note && <p className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">{note}</p>}
-      <Msg data={data} error={error} />
+      {note && <p role="status" className={`rounded-xl border p-3 text-sm ${note.startsWith('Rollback failed') ? 'border-red-200 bg-red-50 text-red-700' : 'border-blue-100 bg-blue-50 text-blue-800'}`}>{note}</p>}
+      <DataState {...state} />
       {data && (
         <Table head={['Repository', 'Environment', 'Version', 'Commit', 'Status', 'Deployed', 'Live URL', '']}>
-          {data.map((d) => (
-            <tr key={d.id}>
-              <td className="font-medium">{d.repoName}</td><td>{d.environment}</td><td>{d.version}</td>
-              <td className="font-mono">{d.commitHash}</td><td><Badge status={d.status} /></td><td>{when(d.deployedAt)}</td>
-              <td><a className="text-blue-700 underline" href={d.url} target="_blank" rel="noreferrer">open</a></td>
-              <td>{d.status === 'active' && <button onClick={() => rollback(d)} className={`${btn} bg-slate-700`}>Roll back</button>}</td>
+          {data.length ? data.map((deployment) => (
+            <tr key={deployment.id}>
+              <td className="font-medium">{deployment.repoName}</td><td>{deployment.environment}</td><td>{deployment.version}</td>
+              <td className="font-mono">{deployment.commitHash}</td><td><Badge status={deployment.status} /></td><td>{when(deployment.deployedAt)}</td>
+              <td>{deployment.url ? <a className="text-blue-700 underline" href={deployment.url} target="_blank" rel="noreferrer">open</a> : '-'}</td>
+              <td>{deployment.status === 'active' && <button onClick={() => rollback(deployment)} className={`${btn} bg-slate-700`}>Roll back</button>}</td>
             </tr>
-          ))}
+          )) : <tr><td colSpan="8" className="text-center text-slate-500">No deployments yet.</td></tr>}
         </Table>
       )}
     </div>
@@ -200,26 +287,33 @@ export function Logs() {
   const runs = usePoll(api.getPipelines, 10000)
   const id = buildId || runs.data?.[0]?.id
   const [live, setLive] = useState(true)
-  const [q, setQ] = useState('')
-  const fetchLogs = useCallback(() => (id ? api.getLogs(id) : Promise.resolve([])), [id])
-  const logs = usePoll(fetchLogs, 3000, live)
-  const lines = (logs.data || []).filter((l) => l.toLowerCase().includes(q.toLowerCase()))
+  const [query, setQuery] = useState('')
+  const fetchLogs = useCallback(() => (id ? api.getLogs(id) : Promise.resolve(null)), [id])
+  const logs = usePoll(fetchLogs, 3000, live && Boolean(id))
+  const lines = (logs.data || []).filter((line) => line.toLowerCase().includes(query.toLowerCase()))
+
   return (
     <div className="space-y-5">
       <PageHeader eyebrow="Observability" title="Logs and monitoring" description="Follow pipeline output in real time." />
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
-        <select value={id || ''} onChange={(e) => nav(`/logs/${e.target.value}`)} className="rounded border border-slate-300 bg-white px-3 py-2">
-          {(runs.data || []).map((p) => <option key={p.id} value={p.id}>{p.id} - {p.repoName} ({p.status})</option>)}
-        </select>
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter log lines" className="rounded border border-slate-300 px-3 py-2" />
-        <label className="flex items-center gap-2"><input type="checkbox" checked={live} onChange={(e) => setLive(e.target.checked)} />Auto-refresh</label>
-      </div>
-      <Msg data={logs.data} error={logs.error || runs.error} />
-      <pre className="min-h-40 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950 p-5 text-sm leading-relaxed text-slate-100 shadow-xl">
-        {lines.length ? lines.map((l, i) => (
-          <div key={i} className={/error|fail/i.test(l) ? 'text-red-400' : ''}>{l}</div>
-        )) : 'No log lines match.'}
-      </pre>
+      <DataState {...runs} />
+      {runs.data && runs.data.length === 0 && <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-600">No pipeline runs yet, so there are no logs to display.</p>}
+      {runs.data && runs.data.length > 0 && <>
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
+          <select aria-label="Pipeline run" value={id || ''} onChange={(event) => nav(`/logs/${event.target.value}`)} className="rounded border border-slate-300 bg-white px-3 py-2">
+            {runs.data.map((pipeline) => <option key={pipeline.id} value={pipeline.id}>{pipeline.id} - {pipeline.repoName} ({pipeline.status})</option>)}
+          </select>
+          <input aria-label="Filter log lines" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Filter log lines" className="rounded border border-slate-300 px-3 py-2" />
+          <label className="flex items-center gap-2"><input type="checkbox" checked={live} onChange={(event) => setLive(event.target.checked)} />Auto-refresh</label>
+        </div>
+        <DataState {...logs} />
+        {logs.data && (
+          <pre className="min-h-40 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950 p-5 text-sm leading-relaxed text-slate-100 shadow-xl">
+            {logs.data.length === 0 ? 'No log lines yet. This pipeline may still be starting.' : lines.length ? lines.map((line, index) => (
+              <div key={`${index}-${line}`} className={/error|fail/i.test(line) ? 'text-red-400' : ''}>{line}</div>
+            )) : 'No log lines match your filter.'}
+          </pre>
+        )}
+      </>}
     </div>
   )
 }

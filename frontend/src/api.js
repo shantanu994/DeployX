@@ -1,27 +1,54 @@
-// All backend calls live here. Endpoints match backend/src/routes/* (Sharva's API).
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const API_BASE = import.meta.env.VITE_API_URL?.trim().replace(/\/+$/, '')
 
-async function req(path, opts = {}) {
-  const res = await fetch(BASE + path, {
-    ...opts,
-    headers: { 'Content-Type': 'application/json' },
-  })
-  const body = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(body.message || body.error || `Request failed (${res.status})`)
+async function request(path, options = {}) {
+  if (!API_BASE) {
+    throw new Error('VITE_API_URL is not configured. Set it in the frontend environment.')
+  }
+
+  const headers = new Headers(options.headers)
+  const token = localStorage.getItem('token')
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+  if (options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  const text = await response.text()
+  let body = null
+
+  if (text) {
+    try {
+      body = JSON.parse(text)
+    } catch {
+      if (response.ok) throw new Error('The backend returned an invalid response.')
+    }
+  }
+
+  if (!response.ok) {
+    const error = new Error(body?.message || body?.error || `Request failed (${response.status})`)
+    error.status = response.status
+    throw error
+  }
+
   return body
 }
-const post = (path, data) => req(path, { method: 'POST', body: JSON.stringify(data || {}) })
+
+const post = (path, data) => request(path, {
+  method: 'POST',
+  body: JSON.stringify(data),
+})
 
 export const api = {
-  // The backend has no login endpoint yet, so sign-in is a UI-only gate.
-  login: async (email) => ({ token: 'ui-only', user: { email } }),
-  getStats: () => req('/api/dashboard/stats'),
-  getRepos: () => req('/api/repositories').then((d) => d.repositories),
-  getPipelines: () => req('/api/pipelines').then((d) => d.pipelines),
+  login: (email, password) => post('/api/auth/login', { email, password }),
+  getCurrentUser: () => request('/api/auth/me').then((body) => body.user),
+  logout: () => post('/api/auth/logout', {}),
+  getStats: () => request('/api/dashboard/stats'),
+  getRepos: () => request('/api/repositories').then((body) => body.repositories),
+  getPipelines: () => request('/api/pipelines').then((body) => body.pipelines),
   runPipeline: (repoId) => post('/api/pipelines', { repoId }),
-  cancelPipeline: (id) => post(`/api/pipelines/${id}/cancel`),
-  retryPipeline: (id) => post(`/api/pipelines/${id}/retry`),
-  getLogs: (id) => req(`/api/pipelines/${id}/logs`).then((d) => d.logs),
-  getDeployments: () => req('/api/deployments').then((d) => d.deployments),
-  rollback: (id) => post(`/api/deployments/${id}/rollback`),
+  cancelPipeline: (id) => post(`/api/pipelines/${id}/cancel`, {}),
+  retryPipeline: (id) => post(`/api/pipelines/${id}/retry`, {}),
+  getLogs: (id) => request(`/api/pipelines/${id}/logs`).then((body) => body.logs),
+  getDeployments: () => request('/api/deployments').then((body) => body.deployments),
+  rollback: (id) => post(`/api/deployments/${id}/rollback`, {}),
 }
