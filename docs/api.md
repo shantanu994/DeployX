@@ -115,8 +115,9 @@ Request: no body. Optional query parameters: `repoId`, `status`, and `limit`.
 Success (`200`): `{ "count": 1, "pipelines": [<pipeline>, ...] }`.
 Pipeline fields include `id`, `repoId`, `repoName`, `branch`, `commitHash`,
 `commitMessage`, `author`, `status`, `trigger`, `startedAt`, `completedAt`,
-`durationMs`, and `stages`. A stage has `id`, `name`, `status`, timestamps, and
-`logs`.
+`durationMs`, and `stages`. Dashboard entries may also include `url` for
+externally hosted deployments. A stage has `id`, `name`, `status`, timestamps,
+and `logs`.
 
 ### `POST /api/pipelines` — `api.runPipeline(repoId)`
 

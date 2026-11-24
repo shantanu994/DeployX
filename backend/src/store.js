@@ -199,6 +199,56 @@ class Store {
             ]
           }
         ]
+      },
+      {
+        id: "pipe-ext-102",
+        repoId: "external-cloud-kitchen",
+        repoName: "Cloud Kitchen Cashflow OS",
+        url: "https://ai-powered-cashflow-operating-system-for-cloud-kitch-1e8ljezix.vercel.app/",
+        branch: "production",
+        commitHash: "external",
+        commitMessage: "Existing externally hosted deployment",
+        author: "external",
+        status: "success",
+        trigger: "external",
+        startedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+        completedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+        durationMs: null,
+        stages: [
+          {
+            id: "stage-ext-102",
+            name: "deploy",
+            status: "success",
+            startedAt: null,
+            finishedAt: null,
+            logs: ["Externally hosted deployment is live."]
+          }
+        ]
+      },
+      {
+        id: "pipe-ext-103",
+        repoId: "external-attendance",
+        repoName: "Personalized Attendance Tracking",
+        url: "https://personalized-attendance-tracking.vercel.app/",
+        branch: "production",
+        commitHash: "external",
+        commitMessage: "Existing externally hosted deployment",
+        author: "external",
+        status: "success",
+        trigger: "external",
+        startedAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+        completedAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+        durationMs: null,
+        stages: [
+          {
+            id: "stage-ext-103",
+            name: "deploy",
+            status: "success",
+            startedAt: null,
+            finishedAt: null,
+            logs: ["Externally hosted deployment is live."]
+          }
+        ]
       }
     ];
 
@@ -215,6 +265,34 @@ class Store {
         url: "https://deployx-frontend.onrender.com",
         status: "active",
         deployedAt: new Date(Date.now() - 3480 * 1000).toISOString(),
+        rolledBackFrom: null
+      },
+      {
+        id: "dep-ext-102",
+        pipelineId: "pipe-ext-102",
+        repoId: "external-cloud-kitchen",
+        repoName: "Cloud Kitchen Cashflow OS",
+        environment: "production",
+        version: "Live",
+        commitHash: "external",
+        imageTag: null,
+        url: "https://ai-powered-cashflow-operating-system-for-cloud-kitch-1e8ljezix.vercel.app/",
+        status: "active",
+        deployedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+        rolledBackFrom: null
+      },
+      {
+        id: "dep-ext-103",
+        pipelineId: "pipe-ext-103",
+        repoId: "external-attendance",
+        repoName: "Personalized Attendance Tracking",
+        environment: "production",
+        version: "Live",
+        commitHash: "external",
+        imageTag: null,
+        url: "https://personalized-attendance-tracking.vercel.app/",
+        status: "active",
+        deployedAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
         rolledBackFrom: null
       }
     ];

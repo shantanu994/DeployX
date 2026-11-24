@@ -57,18 +57,6 @@ const STYLE = {
   running: 'bg-blue-100 text-blue-800', queued: 'bg-amber-100 text-amber-800',
   superseded: 'bg-slate-200 text-slate-700', rolled_back: 'bg-amber-100 text-amber-800',
 }
-const FEATURED_PROJECTS = [
-  {
-    name: 'Cloud Kitchen Cashflow OS',
-    description: 'AI-powered cashflow operating system for cloud kitchens.',
-    url: 'https://ai-powered-cashflow-operating-system-for-cloud-kitch-1e8ljezix.vercel.app/',
-  },
-  {
-    name: 'Personalized Attendance Tracking',
-    description: 'A personalized attendance tracking application.',
-    url: 'https://personalized-attendance-tracking.vercel.app/',
-  },
-]
 const Badge = ({ status }) => (
   <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${STYLE[status] || 'bg-slate-100 text-slate-600'}`}><span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />{status.replace('_', ' ')}</span>
 )
@@ -186,10 +174,10 @@ export function Dashboard() {
         </div>
         <section className="space-y-2">
           <div className="flex items-center justify-between"><h2 className="text-lg font-bold">Recent pipeline runs</h2><Link to="/pipelines" className="text-sm font-semibold text-blue-600 hover:text-blue-700">View all →</Link></div>
-          <Table head={['Run', 'Repository', 'Branch', 'Status', 'Started']}>
+          <Table head={['Run', 'Repository', 'Branch', 'Trigger', 'Status', 'Started']}>
             {data.recentPipelines.length ? data.recentPipelines.map((pipeline) => (
-              <tr key={pipeline.id}><td>{pipeline.id}</td><td>{pipeline.repoName}</td><td>{pipeline.branch}</td><td><Badge status={pipeline.status} /></td><td>{when(pipeline.startedAt)}</td></tr>
-            )) : <tr><td colSpan="5" className="text-center text-slate-500">No pipeline runs yet.</td></tr>}
+              <tr key={pipeline.id}><td>{pipeline.id}</td><td>{pipeline.url ? <a className="text-blue-700 underline" href={pipeline.url} target="_blank" rel="noreferrer">{pipeline.repoName}</a> : pipeline.repoName}</td><td>{pipeline.branch}</td><td>{pipeline.trigger === 'external' ? 'External deployment' : pipeline.trigger}</td><td><Badge status={pipeline.status} /></td><td>{when(pipeline.startedAt)}</td></tr>
+            )) : <tr><td colSpan="6" className="text-center text-slate-500">No pipeline runs yet.</td></tr>}
           </Table>
         </section>
         <section className="space-y-2">
@@ -200,32 +188,6 @@ export function Dashboard() {
                 <td>{deployment.url ? <a className="text-blue-700 underline" href={deployment.url} target="_blank" rel="noreferrer">{deployment.url}</a> : '-'}</td></tr>
             )) : <tr><td colSpan="4" className="text-center text-slate-500">No active deployments.</td></tr>}
           </Table>
-        </section>
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-lg font-bold">Other live projects</h2>
-            <p className="text-sm text-slate-500">Explore these deployed projects.</p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {FEATURED_PROJECTS.map((project) => (
-              <a
-                key={project.url}
-                href={project.url}
-                target="_blank"
-                rel="noreferrer"
-                className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-blue-300 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="font-semibold text-slate-900 group-hover:text-blue-700">{project.name}</h3>
-                    <p className="mt-2 text-sm text-slate-500">{project.description}</p>
-                  </div>
-                  <span aria-hidden="true" className="text-blue-600">↗</span>
-                </div>
-                <span className="mt-4 inline-block text-xs font-semibold text-blue-700">Visit live project</span>
-              </a>
-            ))}
-          </div>
         </section>
       </>}
     </div>
@@ -265,7 +227,7 @@ export function Pipelines() {
         <Table head={['Run', 'Repository', 'Branch', 'Commit', 'Stages', 'Status', 'Duration', 'Started', '']}>
           {runs.data.length ? runs.data.map((pipeline) => (
             <tr key={pipeline.id}>
-              <td className="font-medium">{pipeline.id}</td><td>{pipeline.repoName}</td><td>{pipeline.branch}</td>
+              <td className="font-medium">{pipeline.id}</td><td>{pipeline.url ? <a className="text-blue-700 underline" href={pipeline.url} target="_blank" rel="noreferrer">{pipeline.repoName}</a> : pipeline.repoName}</td><td>{pipeline.branch}</td>
               <td className="font-mono">{pipeline.commitHash}</td>
               <td><div className="flex flex-wrap gap-1">{(pipeline.stages || []).map((stage) => (
                 <span key={stage.id} title={stage.status} className={`rounded px-1.5 py-0.5 text-xs ${STYLE[stage.status] || 'bg-slate-100 text-slate-600'}`}>{stage.name}</span>
