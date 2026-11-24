@@ -16,7 +16,9 @@ backend REST API.
 
 Pages:
 
-- **Sign in** - gate in front of the dashboard.
+- **Sign in** - authenticates against the backend and stores the returned
+  bearer token; dashboard routes are protected and saved sessions are checked
+  with the backend on startup.
 - **Dashboard** - summary metrics, recent pipeline runs and active deployments.
 - **Pipelines** - pick a repository and run its pipeline; view runs with
   per-stage status; cancel or retry a run; open its logs.
@@ -28,8 +30,11 @@ Source layout: `src/App.jsx` (layout, routes, protected pages), `src/pages.jsx`
 (all pages), `src/api.js` (every backend call), `src/auth.jsx` (sign-in state),
 `src/auth-context.jsx` (auth context).
 
-The sign-in screen is currently UI-only. The backend does not yet expose a
-login endpoint on `develop`, so any email and password are accepted in the UI.
+All backend requests use `VITE_API_URL`. Pages show loading, error, and empty
+states, including a waking-server message while the free backend starts. See
+[`docs/api.md`](docs/api.md) for the frontend request and response contract.
+Never put credentials or other secrets in `VITE_*` variables: Vite includes
+them in the public frontend bundle.
 
 ### Completed work so far
 
@@ -40,6 +45,10 @@ The following work has been completed in the repository:
 - Added Dashboard, Pipelines, Deployments, and Logs pages.
 - Added frontend API helpers and connected the pages to the backend API
   contract.
+- Integrated backend login, bearer-token requests, session restoration and
+  protected routes.
+- Added explicit loading, waking-server, error and empty states to the frontend.
+- Documented the frontend API request and response contract in `docs/api.md`.
 - Added the `VITE_API_URL` environment variable example for local frontend
   development.
 - Improved dashboard styling and layout.
@@ -60,9 +69,9 @@ The following work has been completed in the repository:
   - GitHub webhook ingestion (`/api/webhooks/github` and `/webhook/github`)
     with `X-Hub-Signature-256` HMAC-SHA256 verification
   - Aggregated dashboard stats endpoint (`/api/dashboard/stats`)
-- Added backend API documentation in `backend/README.md` and 36 automated tests
-  across 7 test suites (`dashboard`, `deployments`, `health`, `pipelines`,
-  `repositories`, `secrets`, `webhooks`).
+- Added backend API documentation in `backend/README.md` and automated tests
+  covering authentication, CORS, dashboard, deployments, health, pipelines,
+  repositories, secrets, and webhooks.
 - Added frontend and backend Dockerfiles and `.dockerignore` files for container
   deployment.
 - Updated the backend Docker image to install production dependencies with
@@ -80,6 +89,9 @@ parsing (with raw buffer capture for webhook signature verification), and
 | --- | --- | --- |
 | `GET` | `/` | Backend operational message |
 | `GET` | `/health` | Plain-text `OK` health check |
+| `POST` | `/api/auth/login` | Sign in and receive a bearer token |
+| `GET` | `/api/auth/me` | Read the authenticated user's profile |
+| `POST` | `/api/auth/logout` | Revoke the current bearer token |
 | `GET` | `/api/dashboard/stats` | Aggregated metrics, recent runs, and active deployments |
 | `GET`, `POST` | `/api/repositories` | List or connect repositories |
 | `GET`, `PUT`, `DELETE` | `/api/repositories/:id` | Read, update, or remove a repository |
@@ -96,10 +108,10 @@ parsing (with raw buffer capture for webhook signature verification), and
 | `POST` | `/api/deployments/:id/rollback` | Roll back to a target deployment |
 | `POST` | `/api/webhooks/github` | GitHub `ping` / `push` webhook handler (alias `/webhook/github`) |
 
-See [`backend/README.md`](backend/README.md) for full query parameter and
-payload details. Unknown routes return a JSON `404` response. The server listens
-on `0.0.0.0` and uses the `PORT` environment variable when set, or port `3000`
-otherwise.
+See [`backend/README.md`](backend/README.md) for backend query parameter and
+payload details, and [`docs/api.md`](docs/api.md) for the frontend API contract.
+Unknown routes return a JSON `404` response. The server listens on `0.0.0.0`
+and uses the `PORT` environment variable when set, or port `3000` otherwise.
 
 ## Planned workflow
 
@@ -173,7 +185,8 @@ DeployX/
 ├── .github/
 │   └── workflows/
 │       └── ci.yml           # Backend tests and frontend lint/build checks
-├── docs/                    # Reserved for project documentation
+├── docs/
+│   └── api.md               # Frontend API contract
 ├── infrastructure/          # Reserved for deployment and infrastructure files
 ├── .gitignore
 ├── LICENSE
@@ -222,6 +235,10 @@ npm run lint     Run ESLint
 npm run preview  Preview the production build locally
 ```
 
+For a production-build check, run `npm run build` followed by `npm run preview`.
+The backend login endpoint has a seeded demo account: `admin@deployx.dev` /
+`admin123`.
+
 ### Run and test the backend
 
 ```bash
@@ -246,9 +263,9 @@ Run the backend tests with:
 npm test
 ```
 
-The test suite runs 36 tests across 7 files covering the health/root endpoints,
-GitHub webhooks, repository CRUD, environment variables/secrets masking,
-pipeline triggers/logs/cancel/retry, deployment rollback, and dashboard stats.
+The test suite covers authentication, CORS, health/root endpoints, GitHub
+webhooks, repository CRUD, environment variables/secrets masking, pipeline
+triggers/logs/cancel/retry, deployment rollback, and dashboard stats.
 
 ## Docker
 
@@ -309,8 +326,6 @@ repository.
 
 ## Roadmap
 
-- Add real dashboard authentication (backend login endpoint and frontend integration).
-- Restrict CORS to the configured frontend origin and verify webhook signatures with an environment-configured secret.
 - Replace simulated pipeline stages with real build, test, Dockerization, GHCR push, and Render deployment workers.
 - Add persistent database storage to replace the in-memory MVP store.
 - Extend GitHub Actions automation to build/push Docker images and trigger deployments.
