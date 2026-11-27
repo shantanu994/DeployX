@@ -38,6 +38,24 @@ states, including a waking-server message while the free backend starts. See
 Never put credentials or other secrets in `VITE_*` variables: Vite includes
 them in the public frontend bundle.
 
+### Try the dashboard
+
+1. Sign in with the local demo account shown under [Local development](#local-development).
+2. Open **Projects** to search or filter the registered projects. **Live website**
+   opens the project's existing external site; **Details** shows its pipeline,
+   deployment, and log history.
+3. On a project details page, select **Run pipeline**. The run appears in the
+   project history and in **Pipelines**. You can also retry or cancel a run
+   there, and open its logs from the run details.
+4. Visit **Deployments** to inspect deployment records. Rollback is available
+   for eligible simulated deployments.
+
+Pipeline stages are simulations only: they do not clone source code, build or
+test an application, create or publish a container image, or deploy a site.
+A successful run means only that the simulated stages completed. Seeded project
+and deployment records are demo data; the displayed live websites are separate
+existing deployments.
+
 ### Completed work so far
 
 The following work has been completed in the repository:
@@ -179,7 +197,7 @@ DeployX/
 │   └── vite.config.js       # React and Tailwind Vite plugins
 ├── backend/
 │   ├── src/
-│   │   ├── routes/          # Express routers (dashboard, deployments, pipelines, repos, secrets, webhooks)
+│   │   ├── routes/          # Express routers (dashboard, projects, pipelines, deployments, repos, secrets, webhooks)
 │   │   ├── services/        # Pipeline runner & deployment rollback services
 │   │   └── store.js         # In-memory store with seeded demo data
 │   ├── tests/               # 10 test suites (53 HTTP & service tests)
@@ -214,14 +232,19 @@ The CI workflow is implemented, but deployment and release automation are not.
 
 ### Run the frontend
 
-Start the backend first (see below), then:
+Start the backend in one terminal (see below), then use a second terminal for
+the frontend:
 
 ```bash
 cd frontend
-npm install
-cp .env.example .env    # on Windows PowerShell: copy .env.example .env
+npm ci
+cp .env.example .env
 npm run dev
 ```
+
+In Windows PowerShell, use `Copy-Item .env.example .env` instead of `cp`.
+Create the `.env` file from the example only once; if it already exists, keep
+your local settings.
 
 `.env` sets the backend address:
 
@@ -251,12 +274,13 @@ The backend login endpoint has a seeded demo account: `admin@deployx.dev` /
 
 ```bash
 cd backend
-npm install
+npm ci
 npm start
 ```
 
 The backend runs at [`http://localhost:3000`](http://localhost:3000) by
-default. To use another port:
+default. The frontend's `VITE_API_URL` must point to this backend origin. To use
+another port, configure it before starting the backend:
 
 ```bash
 set PORT=8080
@@ -326,11 +350,23 @@ repository.
 
 ## Contribution workflow
 
-1. Branch from `develop` using `feature/<short-name>`.
-2. Use conventional commit prefixes such as `feat:`, `fix:`, `docs:`,
-   `infra:`, `docker:`, and `chore:`.
-3. Open a pull request into `develop` and obtain at least one review.
-4. Merge `develop` into `main` at stable milestones.
+Changes to `develop` must go through a pull request. Create and push a feature
+branch, then open a PR targeting `develop`:
+
+```bash
+git switch develop
+git pull --ff-only origin develop
+git switch -c feature/<short-name>
+# Make and commit your changes
+git push -u origin feature/<short-name>
+```
+
+Use conventional commit prefixes such as `feat:`, `fix:`, `docs:`, `infra:`,
+`docker:`, and `chore:`. After pushing, open a pull request from your feature
+branch into `develop`. The CI workflow runs backend tests and frontend lint and
+build checks for pull requests targeting `develop` or `main`; resolve any
+failures before merging. Do not push directly to protected branches. Merge
+`develop` into `main` at stable milestones.
 
 ## Roadmap
 
