@@ -67,7 +67,7 @@ test("GET /api/pipelines/:id/logs?stage=build retrieves specific stage logs", as
   assert.equal(response.status, 200);
   assert.equal(response.body.stage, "build");
   assert.ok(Array.isArray(response.body.logs));
-  assert.ok(response.body.logs.some((l) => l.includes("npm run build") || l.includes("vite")));
+  assert.ok(response.body.logs.some((line) => line.includes("SIMULATION ONLY")));
 });
 
 test("POST /api/pipelines/:id/cancel cancels an active pipeline", async () => {

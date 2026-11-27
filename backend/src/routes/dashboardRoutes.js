@@ -8,6 +8,7 @@ const store = require("../store");
  */
 router.get("/stats", (req, res) => {
   const repos = store.listRepositories();
+  const projects = store.listProjects();
   const pipelines = store.listPipelines();
   const deployments = store.listDeployments();
 
@@ -32,6 +33,7 @@ router.get("/stats", (req, res) => {
 
   res.status(200).json({
     metrics: {
+      totalProjects: projects.length,
       totalRepositories: repos.length,
       totalPipelines,
       successfulPipelines,
@@ -41,7 +43,9 @@ router.get("/stats", (req, res) => {
       averagePipelineDurationSec: Math.round(avgDurationMs / 1000)
     },
     recentPipelines: pipelines.slice(0, 5),
-    activeDeploymentsList: deployments.filter((d) => d.status === "active").slice(0, 5)
+    activeDeploymentsList: deployments.filter((d) => d.status === "active").slice(0, 5),
+    recentDeployments: deployments.slice(0, 5),
+    projects
   });
 });
 

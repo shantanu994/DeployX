@@ -43,12 +43,23 @@ export const api = {
   getCurrentUser: () => request('/api/auth/me').then((body) => body.user),
   logout: () => post('/api/auth/logout', {}),
   getStats: () => request('/api/dashboard/stats'),
+  getProjects: () => request('/api/projects'),
+  getProject: (id) => request(`/api/projects/${id}`),
   getRepos: () => request('/api/repositories').then((body) => body.repositories),
-  getPipelines: () => request('/api/pipelines').then((body) => body.pipelines),
+  getPipelines: (filters = {}) => {
+    const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value))
+    const queryString = query.toString()
+    return request(`/api/pipelines${queryString ? `?${queryString}` : ''}`).then((body) => body.pipelines)
+  },
   runPipeline: (repoId) => post('/api/pipelines', { repoId }),
+  runProjectPipeline: (projectId) => post('/api/pipelines', { projectId }),
   cancelPipeline: (id) => post(`/api/pipelines/${id}/cancel`, {}),
   retryPipeline: (id) => post(`/api/pipelines/${id}/retry`, {}),
   getLogs: (id) => request(`/api/pipelines/${id}/logs`).then((body) => body.logs),
-  getDeployments: () => request('/api/deployments').then((body) => body.deployments),
+  getDeployments: (filters = {}) => {
+    const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value))
+    const queryString = query.toString()
+    return request(`/api/deployments${queryString ? `?${queryString}` : ''}`).then((body) => body.deployments)
+  },
   rollback: (id) => post(`/api/deployments/${id}/rollback`, {}),
 }

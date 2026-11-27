@@ -63,14 +63,24 @@ Success (`200`):
 ```json
 {
   "metrics": {
+    "totalProjects": 2,
     "totalRepositories": 2,
-    "totalPipelines": 2,
+    "totalPipelines": 1,
     "successfulPipelines": 1,
     "failedPipelines": 0,
-    "successRate": "50%",
-    "activeDeployments": 1,
+    "successRate": "100%",
+    "activeDeployments": 2,
     "averagePipelineDurationSec": 120
   },
+  "projects": [
+    {
+      "id": "project-cloudkitchen-ai",
+      "name": "CloudKitchen AI",
+      "platform": "Vercel",
+      "status": "active",
+      "pipelineRunsCount": 0
+    }
+  ],
   "recentPipelines": [
     {
       "id": "pipe-101",
@@ -79,22 +89,54 @@ Success (`200`):
       "branch": "main",
       "commitHash": "185da3c",
       "status": "success",
+      "executionMode": "simulation",
       "startedAt": "<ISO-8601 timestamp>",
       "stages": []
     }
   ],
   "activeDeploymentsList": [
     {
-      "id": "dep-101",
-      "repoId": "repo-1",
-      "repoName": "DeployX-org/frontend",
+      "id": "dep-ext-102",
+      "projectId": "project-cloudkitchen-ai",
+      "repoId": null,
+      "repoName": "CloudKitchen AI",
       "environment": "production",
-      "version": "v1",
-      "url": "<deployment URL>"
+      "version": "Live",
+      "url": "https://ai-powered-cashflow-operating-system-for-cloud-kitch-1e8ljezix.vercel.app/"
+    }
+  ],
+  "recentDeployments": [
+    {
+      "id": "dep-ext-102",
+      "projectId": "project-cloudkitchen-ai",
+      "repoName": "CloudKitchen AI",
+      "status": "active",
+      "source": "external",
+      "deployedAt": null
     }
   ]
 }
 ```
+
+`recentDeployments` contains the latest deployment records, including simulated
+pipeline outputs as well as registered external live deployments. The dashboard metrics
+are calculated from the in-memory store. Project deployments
+registered from the supplied Vercel URLs are marked `active` with `source:
+"external"`; their original deployment timestamps are not available.
+
+## Projects
+
+### `GET /api/projects` — `api.getProjects()`
+
+Returns `{ "count": 2, "projects": [...] }`. Each project has its own stable ID,
+name, description, platform, live URL, status, pipeline configuration, derived
+`pipelineRunsCount`, `lastPipeline`, and `lastDeployment`.
+
+### `GET /api/projects/:id` — `api.getProject(id)`
+
+Returns `{ "project": <project>, "pipelines": [...], "deployments": [...],
+"recentLogs": [...] }`. All history and logs are filtered to that project ID.
+Unknown project IDs return `404`.
 
 ## Repositories
 
@@ -110,26 +152,30 @@ Repository fields include `id`, `name`, `url`, `defaultBranch`, `buildConfig`,
 
 ### `GET /api/pipelines` — `api.getPipelines()`
 
-Request: no body. Optional query parameters: `repoId`, `status`, and `limit`.
+Request: no body. Optional query parameters: `projectId`, `repoId`, `status`,
+and `limit`.
 
 Success (`200`): `{ "count": 1, "pipelines": [<pipeline>, ...] }`.
-Pipeline fields include `id`, `repoId`, `repoName`, `branch`, `commitHash`,
-`commitMessage`, `author`, `status`, `trigger`, `startedAt`, `completedAt`,
-`durationMs`, and `stages`. Dashboard entries may also include `url` for
-externally hosted deployments. A stage has `id`, `name`, `status`, timestamps,
-and `logs`.
+Pipeline fields include `id`, `projectId`, `repoId`, `repoName`, `url`,
+`platform`, `branch`, `commitHash`, `commitMessage`, `author`, `status`,
+`trigger`, `executionMode`, `startedAt`, `completedAt`, `durationMs`, and
+`stages`. A stage has `id`, `name`, `status`, timestamps, and
+`logs`. Pipeline runs are simulations: success indicates simulated progression,
+not a completed build, test, registry push, or deployment.
 
-### `POST /api/pipelines` — `api.runPipeline(repoId)`
+### `POST /api/pipelines`
 
-Request:
+Provide exactly one target ID. For a registered project:
 
 ```json
-{ "repoId": "repo-1" }
+{ "projectId": "project-cloudkitchen-ai" }
 ```
 
-Success (`201`): `{ "message": "Pipeline successfully initiated", "pipeline": <pipeline> }`.
+Repository runs remain supported with `{ "repoId": "repo-1" }`. Success (`201`):
+`{ "message": "Pipeline successfully initiated", "pipeline": <pipeline> }`.
 The backend also accepts optional `branch`, `commitHash`, `commitMessage`,
-`author`, and `sync` fields.
+`author`, and `sync` fields. `api.runProjectPipeline(projectId)` and
+`api.runPipeline(repoId)` call this endpoint.
 
 ### `POST /api/pipelines/:id/cancel` — `api.cancelPipeline(id)`
 
@@ -167,8 +213,8 @@ and `logs`.
 
 ### `GET /api/deployments` — `api.getDeployments()`
 
-Request: no body. Optional query parameters: `repoId`, `environment`, and
-`status`.
+Request: no body. Optional query parameters: `projectId`, `repoId`,
+`environment`, and `status`.
 
 Success (`200`): `{ "count": 1, "deployments": [<deployment>, ...] }`.
 Deployment fields include `id`, `pipelineId`, `repoId`, `repoName`,

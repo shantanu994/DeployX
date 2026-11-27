@@ -20,7 +20,9 @@ Pages:
   bearer token; dashboard routes are protected and saved sessions are checked
   with the backend on startup.
 - **Dashboard** - summary metrics, recent pipeline runs and active deployments.
-- **Pipelines** - pick a repository and run its pipeline; view runs with
+- **Projects** - browse registered projects, open live sites, and inspect
+  project-scoped pipeline and deployment history.
+- **Pipelines** - pick a project or repository and run its pipeline; view runs with
   per-stage status; cancel or retry a run; open its logs.
 - **Deployments** - deployment history with environment, version, live URL and
   rollback.
@@ -36,13 +38,31 @@ states, including a waking-server message while the free backend starts. See
 Never put credentials or other secrets in `VITE_*` variables: Vite includes
 them in the public frontend bundle.
 
+### Try the dashboard
+
+1. Sign in with the local demo account shown under [Local development](#local-development).
+2. Open **Projects** to search or filter the registered projects. **Live website**
+   opens the project's existing external site; **Details** shows its pipeline,
+   deployment, and log history.
+3. On a project details page, select **Run pipeline**. The run appears in the
+   project history and in **Pipelines**. You can also retry or cancel a run
+   there, and open its logs from the run details.
+4. Visit **Deployments** to inspect deployment records. Rollback is available
+   for eligible simulated deployments.
+
+Pipeline stages are simulations only: they do not clone source code, build or
+test an application, create or publish a container image, or deploy a site.
+A successful run means only that the simulated stages completed. Seeded project
+and deployment records are demo data; the displayed live websites are separate
+existing deployments.
+
 ### Completed work so far
 
 The following work has been completed in the repository:
 
 - Added the initial React/Vite frontend structure and Tailwind CSS setup.
 - Built the dashboard layout with protected navigation and sign-in state.
-- Added Dashboard, Pipelines, Deployments, and Logs pages.
+- Added Dashboard, Projects, Pipelines, Deployments, and Logs pages.
 - Added frontend API helpers and connected the pages to the backend API
   contract.
 - Integrated backend login, bearer-token requests, session restoration and
@@ -59,11 +79,15 @@ The following work has been completed in the repository:
 - Implemented the core backend CI/CD APIs using an in-memory store with seeded
   demo data (`backend/src/store.js`):
   - Repository configuration CRUD (`/api/repositories`)
+  - Seeded project catalog and project-scoped pipeline/deployment history
+    (`/api/projects`)
   - Per-repository environment variable and masked secret storage
     (`/api/repositories/:repoId/env`)
-  - Event-driven 6-stage pipeline runner (`checkout`, `build`, `test`,
-    `docker_build`, `registry_push`, `deploy`) with manual triggers, cancel,
-    retry, stage logs, and Server-Sent Events (SSE) live streaming
+  - Event-driven 6-stage pipeline simulator (`checkout`, `build`, `test`,
+    `docker_build`, `registry_push`, `deploy`) with manual project/repository
+    triggers, cancel, retry, stage logs, and Server-Sent Events (SSE)
+    live streaming. Logs explicitly state that no real build, test, push, or
+    deployment takes place.
     (`/api/pipelines`)
   - Deployment history and rollback state machine (`/api/deployments`)
   - GitHub webhook ingestion (`/api/webhooks/github` and `/webhook/github`)
@@ -93,11 +117,13 @@ parsing (with raw buffer capture for webhook signature verification), and
 | `GET` | `/api/auth/me` | Read the authenticated user's profile |
 | `POST` | `/api/auth/logout` | Revoke the current bearer token |
 | `GET` | `/api/dashboard/stats` | Aggregated metrics, recent runs, and active deployments |
+| `GET` | `/api/projects` | List registered projects with pipeline counts and latest activity |
+| `GET` | `/api/projects/:id` | Read project details, pipeline history, deployments, and recent logs |
 | `GET`, `POST` | `/api/repositories` | List or connect repositories |
 | `GET`, `PUT`, `DELETE` | `/api/repositories/:id` | Read, update, or remove a repository |
 | `GET`, `POST` | `/api/repositories/:repoId/env` | List (masked) or set repository env vars/secrets |
 | `DELETE` | `/api/repositories/:repoId/env/:key` | Remove a repository env var or secret |
-| `GET`, `POST` | `/api/pipelines` | List pipeline runs or trigger a manual run |
+| `GET`, `POST` | `/api/pipelines` | List pipeline runs or trigger a simulated run for a project or repository |
 | `GET` | `/api/pipelines/:id` | Pipeline details and 6-stage statuses |
 | `GET` | `/api/pipelines/:id/logs` | Aggregated or stage-filtered logs (`?stage=`) |
 | `GET` | `/api/pipelines/:id/stream` | Server-Sent Events (SSE) live log & status stream |
@@ -160,7 +186,7 @@ DeployX/
 │   │   ├── api.js           # Backend REST API client
 │   │   ├── auth-context.jsx # React auth context
 │   │   ├── auth.jsx         # AuthProvider and session state
-│   │   ├── pages.jsx        # Login, Dashboard, Pipelines, Deployments, Logs
+│   │   ├── pages.jsx        # Login, Dashboard, Projects, Pipelines, Deployments, Logs
 │   │   ├── App.jsx          # Router and protected layout
 │   │   └── main.jsx         # Application entry point
 │   ├── .dockerignore
@@ -171,10 +197,10 @@ DeployX/
 │   └── vite.config.js       # React and Tailwind Vite plugins
 ├── backend/
 │   ├── src/
-│   │   ├── routes/          # Express routers (dashboard, deployments, pipelines, repos, secrets, webhooks)
+│   │   ├── routes/          # Express routers (dashboard, projects, pipelines, deployments, repos, secrets, webhooks)
 │   │   ├── services/        # Pipeline runner & deployment rollback services
 │   │   └── store.js         # In-memory store with seeded demo data
-│   ├── tests/               # 7 test suites (36 HTTP & service tests)
+│   ├── tests/               # 10 test suites (53 HTTP & service tests)
 │   ├── .dockerignore
 │   ├── .gitignore
 │   ├── Dockerfile           # Production backend container definition
@@ -206,14 +232,19 @@ The CI workflow is implemented, but deployment and release automation are not.
 
 ### Run the frontend
 
-Start the backend first (see below), then:
+Start the backend in one terminal (see below), then use a second terminal for
+the frontend:
 
 ```bash
 cd frontend
-npm install
-cp .env.example .env    # on Windows PowerShell: copy .env.example .env
+npm ci
+cp .env.example .env
 npm run dev
 ```
+
+In Windows PowerShell, use `Copy-Item .env.example .env` instead of `cp`.
+Create the `.env` file from the example only once; if it already exists, keep
+your local settings.
 
 `.env` sets the backend address:
 
@@ -243,12 +274,13 @@ The backend login endpoint has a seeded demo account: `admin@deployx.dev` /
 
 ```bash
 cd backend
-npm install
+npm ci
 npm start
 ```
 
 The backend runs at [`http://localhost:3000`](http://localhost:3000) by
-default. To use another port:
+default. The frontend's `VITE_API_URL` must point to this backend origin. To use
+another port, configure it before starting the backend:
 
 ```bash
 set PORT=8080
@@ -318,11 +350,23 @@ repository.
 
 ## Contribution workflow
 
-1. Branch from `develop` using `feature/<short-name>`.
-2. Use conventional commit prefixes such as `feat:`, `fix:`, `docs:`,
-   `infra:`, `docker:`, and `chore:`.
-3. Open a pull request into `develop` and obtain at least one review.
-4. Merge `develop` into `main` at stable milestones.
+Changes to `develop` must go through a pull request. Create and push a feature
+branch, then open a PR targeting `develop`:
+
+```bash
+git switch develop
+git pull --ff-only origin develop
+git switch -c feature/<short-name>
+# Make and commit your changes
+git push -u origin feature/<short-name>
+```
+
+Use conventional commit prefixes such as `feat:`, `fix:`, `docs:`, `infra:`,
+`docker:`, and `chore:`. After pushing, open a pull request from your feature
+branch into `develop`. The CI workflow runs backend tests and frontend lint and
+build checks for pull requests targeting `develop` or `main`; resolve any
+failures before merging. Do not push directly to protected branches. Merge
+`develop` into `main` at stable milestones.
 
 ## Roadmap
 

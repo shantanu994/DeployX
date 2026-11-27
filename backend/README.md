@@ -7,13 +7,13 @@ The backend engine for **DeployX**, an automated cloud CI/CD platform. Built wit
 ## Features
 
 - **GitHub Webhook Engine:** Ingests GitHub `push` and `ping` events, verifies `X-Hub-Signature-256` HMAC signatures, and automatically triggers pipeline runs.
-- **Pipeline Runner & Execution Stages:** Automated stages for:
-  1. `checkout` (Repository cloning & commit verification)
-  2. `build` (Compiling assets & modules)
-  3. `test` (Automated testing runner)
-  4. `docker_build` (Container image tagging)
-  5. `registry_push` (Push to GHCR / Docker registry)
-  6. `deploy` (Deployment to target runtime e.g. Render / Cloud)
+- **Pipeline Simulation & Execution Stages:** Six simulated stages: `checkout`,
+  `build`, `test`, `docker_build`, `registry_push`, and `deploy`.
+- Each pipeline stage is explicitly a simulation: source retrieval, builds,
+  tests, Docker images, registry pushes, and deployment actions are not
+  performed. A successful status means only that the simulation completed.
+- **Projects:** Seeded project catalog with isolated pipeline, deployment, and
+  log histories for each project.
 - **Live Logs & Real-Time Streaming:**
   - Aggregated logs or stage-filtered logs via REST.
   - Server-Sent Events (SSE) live streaming endpoint (`/api/pipelines/:id/stream`).
@@ -52,6 +52,7 @@ backend/
 │   │   ├── dashboardRoutes.js    # /api/dashboard/stats
 │   │   ├── deploymentRoutes.js   # /api/deployments & rollback
 │   │   ├── pipelineRoutes.js     # /api/pipelines, logs & SSE stream
+│   │   ├── projectRoutes.js      # /api/projects
 │   │   ├── repositoryRoutes.js   # /api/repositories CRUD
 │   │   ├── secretRoutes.js       # /api/repositories/:id/env & secrets
 │   │   └── webhookRoutes.js      # /api/webhooks/github & HMAC check
@@ -66,6 +67,7 @@ backend/
 │   ├── deployments.test.js
 │   ├── health.test.js
 │   ├── pipelines.test.js
+│   ├── projects.test.js
 │   ├── repositories.test.js
 │   ├── secrets.test.js
 │   └── webhooks.test.js
@@ -106,6 +108,12 @@ Default demo account: `admin@deployx.dev` / `admin123`
 |---|---|---|
 | `GET` | `/api/dashboard/stats` | Returns aggregate counts, success rates, recent runs, and active deployments |
 
+### Projects
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/projects` | Lists registered projects with pipeline counts and latest activity |
+| `GET` | `/api/projects/:id` | Gets a project with project-scoped pipelines, deployments, and recent logs |
+
 ### Repositories
 | Method | Endpoint | Description |
 |---|---|---|
@@ -118,9 +126,9 @@ Default demo account: `admin@deployx.dev` / `admin123`
 ### Pipelines & Logs
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/pipelines` | List pipeline executions (`?repoId=&status=&limit=`) |
+| `GET` | `/api/pipelines` | List pipeline executions (`?projectId=&repoId=&status=&limit=`) |
 | `GET` | `/api/pipelines/:id` | Get details and stage statuses of a pipeline |
-| `POST` | `/api/pipelines` | Manually trigger a pipeline run |
+| `POST` | `/api/pipelines` | Manually trigger a simulated run using exactly one of `projectId` or `repoId` |
 | `GET` | `/api/pipelines/:id/logs` | Fetch logs (`?stage=checkout|build|test|docker_build|registry_push|deploy`) |
 | `GET` | `/api/pipelines/:id/stream` | Server-Sent Events (SSE) live updates |
 | `POST` | `/api/pipelines/:id/cancel` | Cancel an active pipeline |
@@ -129,7 +137,7 @@ Default demo account: `admin@deployx.dev` / `admin123`
 ### Deployments & Rollback
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/deployments` | List deployments (`?repoId=&environment=&status=`) |
+| `GET` | `/api/deployments` | List deployments (`?projectId=&repoId=&environment=&status=`) |
 | `GET` | `/api/deployments/:id` | Get deployment details |
 | `POST` | `/api/deployments/:id/rollback` | Rollback to target deployment and supersede active deployment |
 
@@ -170,4 +178,4 @@ Runs at `http://localhost:3000` (or `PORT` environment variable).
 npm test
 ```
 
-Executes Node's built-in test runner across all 9 test suites (48 tests).
+Executes Node's built-in test runner across all 10 test suites (53 tests).
