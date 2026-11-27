@@ -14,9 +14,12 @@ class DeploymentService {
     if (!requested) {
       throw new Error(`Target deployment '${deploymentId}' not found`);
     }
+    if (requested.source === "external") {
+      throw new Error("Rollback is unavailable for externally managed deployments");
+    }
 
     const currentDeployments = store.listDeployments({
-      repoId: requested.repoId,
+      ...(requested.projectId ? { projectId: requested.projectId } : { repoId: requested.repoId }),
       environment: requested.environment
     });
 
@@ -40,6 +43,7 @@ class DeploymentService {
     // Create a new rollback deployment
     const rolledBackDeployment = store.createDeployment({
       pipelineId: targetDeployment.pipelineId,
+      projectId: targetDeployment.projectId,
       repoId: targetDeployment.repoId,
       repoName: targetDeployment.repoName,
       environment: targetDeployment.environment,

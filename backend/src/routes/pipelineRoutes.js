@@ -8,8 +8,8 @@ const pipelineService = require("../services/pipelineService");
  * List pipeline executions
  */
 router.get("/", (req, res) => {
-  const { repoId, status, limit } = req.query;
-  const pipelines = store.listPipelines({ repoId, status, limit });
+  const { projectId, repoId, status, limit } = req.query;
+  const pipelines = store.listPipelines({ projectId, repoId, status, limit });
   res.status(200).json({
     count: pipelines.length,
     pipelines
@@ -33,28 +33,29 @@ router.get("/:id", (req, res) => {
  * Manually trigger a pipeline run
  */
 router.post("/", (req, res) => {
-  const { repoId, branch, commitHash, commitMessage, author, sync } = req.body;
+  const { projectId, repoId, branch, commitHash, commitMessage, author, sync } = req.body || {};
 
-  if (!repoId) {
+  if ((!repoId && !projectId) || (repoId && projectId)) {
     return res.status(400).json({
       error: "Bad Request",
-      message: "Field 'repoId' is required"
+      message: "Provide exactly one of 'repoId' or 'projectId'"
     });
   }
 
-  const repo = store.getRepository(repoId);
-  if (!repo) {
+  const target = projectId ? store.getProject(projectId) : store.getRepository(repoId);
+  if (!target) {
     return res.status(404).json({
       error: "Not Found",
-      message: `Repository '${repoId}' not found`
+      message: `${projectId ? "Project" : "Repository"} '${projectId || repoId}' not found`
     });
   }
 
   try {
     const isSync = sync === true || req.headers["x-test-sync"] === "true";
     const result = pipelineService.startPipeline({
-      repoId: repo.id,
-      branch: branch || repo.defaultBranch || "main",
+      projectId: projectId ? target.id : undefined,
+      repoId: projectId ? undefined : target.id,
+      branch: branch || target.defaultBranch || "main",
       commitHash,
       commitMessage: commitMessage || "Manual deployment trigger",
       author: author || "DeployX User",

@@ -20,7 +20,9 @@ Pages:
   bearer token; dashboard routes are protected and saved sessions are checked
   with the backend on startup.
 - **Dashboard** - summary metrics, recent pipeline runs and active deployments.
-- **Pipelines** - pick a repository and run its pipeline; view runs with
+- **Projects** - browse registered projects, open live sites, and inspect
+  project-scoped pipeline and deployment history.
+- **Pipelines** - pick a project or repository and run its pipeline; view runs with
   per-stage status; cancel or retry a run; open its logs.
 - **Deployments** - deployment history with environment, version, live URL and
   rollback.
@@ -42,7 +44,7 @@ The following work has been completed in the repository:
 
 - Added the initial React/Vite frontend structure and Tailwind CSS setup.
 - Built the dashboard layout with protected navigation and sign-in state.
-- Added Dashboard, Pipelines, Deployments, and Logs pages.
+- Added Dashboard, Projects, Pipelines, Deployments, and Logs pages.
 - Added frontend API helpers and connected the pages to the backend API
   contract.
 - Integrated backend login, bearer-token requests, session restoration and
@@ -59,11 +61,15 @@ The following work has been completed in the repository:
 - Implemented the core backend CI/CD APIs using an in-memory store with seeded
   demo data (`backend/src/store.js`):
   - Repository configuration CRUD (`/api/repositories`)
+  - Seeded project catalog and project-scoped pipeline/deployment history
+    (`/api/projects`)
   - Per-repository environment variable and masked secret storage
     (`/api/repositories/:repoId/env`)
-  - Event-driven 6-stage pipeline runner (`checkout`, `build`, `test`,
-    `docker_build`, `registry_push`, `deploy`) with manual triggers, cancel,
-    retry, stage logs, and Server-Sent Events (SSE) live streaming
+  - Event-driven 6-stage pipeline simulator (`checkout`, `build`, `test`,
+    `docker_build`, `registry_push`, `deploy`) with manual project/repository
+    triggers, cancel, retry, stage logs, and Server-Sent Events (SSE)
+    live streaming. Logs explicitly state that no real build, test, push, or
+    deployment takes place.
     (`/api/pipelines`)
   - Deployment history and rollback state machine (`/api/deployments`)
   - GitHub webhook ingestion (`/api/webhooks/github` and `/webhook/github`)
@@ -93,11 +99,13 @@ parsing (with raw buffer capture for webhook signature verification), and
 | `GET` | `/api/auth/me` | Read the authenticated user's profile |
 | `POST` | `/api/auth/logout` | Revoke the current bearer token |
 | `GET` | `/api/dashboard/stats` | Aggregated metrics, recent runs, and active deployments |
+| `GET` | `/api/projects` | List registered projects with pipeline counts and latest activity |
+| `GET` | `/api/projects/:id` | Read project details, pipeline history, deployments, and recent logs |
 | `GET`, `POST` | `/api/repositories` | List or connect repositories |
 | `GET`, `PUT`, `DELETE` | `/api/repositories/:id` | Read, update, or remove a repository |
 | `GET`, `POST` | `/api/repositories/:repoId/env` | List (masked) or set repository env vars/secrets |
 | `DELETE` | `/api/repositories/:repoId/env/:key` | Remove a repository env var or secret |
-| `GET`, `POST` | `/api/pipelines` | List pipeline runs or trigger a manual run |
+| `GET`, `POST` | `/api/pipelines` | List pipeline runs or trigger a simulated run for a project or repository |
 | `GET` | `/api/pipelines/:id` | Pipeline details and 6-stage statuses |
 | `GET` | `/api/pipelines/:id/logs` | Aggregated or stage-filtered logs (`?stage=`) |
 | `GET` | `/api/pipelines/:id/stream` | Server-Sent Events (SSE) live log & status stream |
@@ -160,7 +168,7 @@ DeployX/
 │   │   ├── api.js           # Backend REST API client
 │   │   ├── auth-context.jsx # React auth context
 │   │   ├── auth.jsx         # AuthProvider and session state
-│   │   ├── pages.jsx        # Login, Dashboard, Pipelines, Deployments, Logs
+│   │   ├── pages.jsx        # Login, Dashboard, Projects, Pipelines, Deployments, Logs
 │   │   ├── App.jsx          # Router and protected layout
 │   │   └── main.jsx         # Application entry point
 │   ├── .dockerignore
@@ -174,7 +182,7 @@ DeployX/
 │   │   ├── routes/          # Express routers (dashboard, deployments, pipelines, repos, secrets, webhooks)
 │   │   ├── services/        # Pipeline runner & deployment rollback services
 │   │   └── store.js         # In-memory store with seeded demo data
-│   ├── tests/               # 7 test suites (36 HTTP & service tests)
+│   ├── tests/               # 10 test suites (53 HTTP & service tests)
 │   ├── .dockerignore
 │   ├── .gitignore
 │   ├── Dockerfile           # Production backend container definition

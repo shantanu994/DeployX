@@ -9,6 +9,7 @@ const deploymentRoutes = require("./src/routes/deploymentRoutes");
 const secretRoutes = require("./src/routes/secretRoutes");
 const dashboardRoutes = require("./src/routes/dashboardRoutes");
 const authRoutes = require("./src/routes/authRoutes");
+const projectRoutes = require("./src/routes/projectRoutes");
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -68,6 +69,7 @@ app.use("/api/repositories", secretRoutes);
 app.use("/api/pipelines", pipelineRoutes);
 app.use("/api/deployments", deploymentRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/projects", projectRoutes);
 
 // Global 404 handler
 app.use((req, res) => {

@@ -18,11 +18,53 @@ class Store {
     try {
       if (fs.existsSync(file)) {
         const raw = JSON.parse(fs.readFileSync(file, "utf8"));
+        if (Array.isArray(raw.projects)) this.projects = raw.projects;
         if (Array.isArray(raw.repositories)) this.repositories = raw.repositories;
-        if (Array.isArray(raw.pipelines)) this.pipelines = raw.pipelines;
+        if (Array.isArray(raw.pipelines)) {
+          this.pipelines = raw.pipelines
+            .filter((pipeline) => pipeline.trigger !== "external")
+            .map((pipeline) => pipeline.executionMode ? pipeline : {
+              ...pipeline,
+              executionMode: "simulation",
+              stages: (pipeline.stages || []).map((stage) => ({
+                ...stage,
+                logs: ["SIMULATION ONLY: this historical run was not executed against external services."]
+              }))
+            });
+        }
         if (Array.isArray(raw.deployments)) this.deployments = raw.deployments;
         if (Array.isArray(raw.secrets)) this.secrets = raw.secrets;
         if (Array.isArray(raw.users)) this.users = raw.users;
+        this.deployments = this.deployments.map((deployment) => {
+          const project = this.projects.find((item) => item.url === deployment.url);
+          if (project) {
+            return {
+              ...deployment,
+              projectId: project.id,
+              repoId: null,
+              repoName: project.name,
+              pipelineId: null,
+              imageTag: null,
+              commitHash: null,
+              version: "Live",
+              status: "active",
+              source: "external",
+              deployedAt: null
+            };
+          }
+
+          const pipeline = this.pipelines.find((item) => item.id === deployment.pipelineId);
+          if (pipeline?.executionMode === "simulation") {
+            return {
+              ...deployment,
+              status: deployment.status === "active" ? "simulated" : deployment.status,
+              source: "simulation",
+              imageTag: null,
+              url: null
+            };
+          }
+          return deployment;
+        });
       } else {
         this._saveToDisk();
       }
@@ -40,6 +82,7 @@ class Store {
         file,
         JSON.stringify(
           {
+            projects: this.projects,
             repositories: this.repositories,
             pipelines: this.pipelines,
             deployments: this.deployments,
@@ -57,6 +100,44 @@ class Store {
 
   reset() {
     this.revokedTokens = new Set();
+    this.projects = [
+      {
+        id: "project-cloudkitchen-ai",
+        name: "CloudKitchen AI",
+        description: "AI-powered cashflow management platform for cloud kitchens.",
+        platform: "Vercel",
+        url: "https://ai-powered-cashflow-operating-system-for-cloud-kitch-1e8ljezix.vercel.app/",
+        status: "active",
+        defaultBranch: "main",
+        sourceRepositoryUrl: null,
+        buildConfig: {
+          buildCommand: "npm run build",
+          testCommand: "npm test",
+          dockerfile: "Dockerfile",
+          targetEnvironment: "Vercel production",
+          registryUrl: null
+        },
+        createdAt: new Date().toISOString()
+      },
+      {
+        id: "project-attendance-tracker",
+        name: "Attendance Tracker",
+        description: "Personalized attendance tracking and management platform.",
+        platform: "Vercel",
+        url: "https://personalized-attendance-tracking.vercel.app/",
+        status: "active",
+        defaultBranch: "main",
+        sourceRepositoryUrl: null,
+        buildConfig: {
+          buildCommand: "npm run build",
+          testCommand: "npm test",
+          dockerfile: "Dockerfile",
+          targetEnvironment: "Vercel production",
+          registryUrl: null
+        },
+        createdAt: new Date().toISOString()
+      }
+    ];
 
     const defaultPassword = this._hashPassword("admin123");
     this.users = [
@@ -109,6 +190,8 @@ class Store {
     this.pipelines = [
       {
         id: "pipe-101",
+        projectId: null,
+        executionMode: "simulation",
         repoId: "repo-1",
         repoName: "DeployX-org/frontend",
         branch: "main",
@@ -127,11 +210,7 @@ class Store {
             status: "success",
             startedAt: new Date(Date.now() - 3600 * 1000).toISOString(),
             finishedAt: new Date(Date.now() - 3590 * 1000).toISOString(),
-            logs: [
-              "Cloning repository https://github.com/DeployX-org/frontend.git...",
-              "Checking out commit 185da3c on branch main",
-              "Checkout completed successfully in 10s"
-            ]
+            logs: ["SIMULATION ONLY: source retrieval was not executed."]
           },
           {
             id: "stage-2",
@@ -139,14 +218,7 @@ class Store {
             status: "success",
             startedAt: new Date(Date.now() - 3590 * 1000).toISOString(),
             finishedAt: new Date(Date.now() - 3550 * 1000).toISOString(),
-            logs: [
-              "Running build command: npm run build",
-              "vite v8.0.0 building for production...",
-              "transforming (24) modules",
-              "dist/index.html   0.45 kB",
-              "dist/assets/index.js   142.30 kB",
-              "Build succeeded in 40s"
-            ]
+            logs: ["SIMULATION ONLY: npm run build was not executed."]
           },
           {
             id: "stage-3",
@@ -154,12 +226,7 @@ class Store {
             status: "success",
             startedAt: new Date(Date.now() - 3550 * 1000).toISOString(),
             finishedAt: new Date(Date.now() - 3530 * 1000).toISOString(),
-            logs: [
-              "Running test suite: npm test",
-              "✔ Frontend component renders correctly",
-              "✔ Route navigation functions without errors",
-              "All 2 tests passed"
-            ]
+            logs: ["SIMULATION ONLY: automated tests were not run."]
           },
           {
             id: "stage-4",
@@ -167,13 +234,7 @@ class Store {
             status: "success",
             startedAt: new Date(Date.now() - 3530 * 1000).toISOString(),
             finishedAt: new Date(Date.now() - 3505 * 1000).toISOString(),
-            logs: [
-              "Building Docker container image...",
-              "Step 1/6 : FROM node:20-alpine",
-              "Step 2/6 : WORKDIR /app",
-              "Step 3/6 : COPY . .",
-              "Successfully tagged deployx-frontend:185da3c"
-            ]
+            logs: ["SIMULATION ONLY: no Docker image was built."]
           },
           {
             id: "stage-5",
@@ -181,10 +242,7 @@ class Store {
             status: "success",
             startedAt: new Date(Date.now() - 3505 * 1000).toISOString(),
             finishedAt: new Date(Date.now() - 3490 * 1000).toISOString(),
-            logs: [
-              "Pushing image to ghcr.io/deployx-org/frontend:185da3c",
-              "Push completed. Digest: sha256:7f9b8c2d1e0a"
-            ]
+            logs: ["SIMULATION ONLY: no image was pushed to a registry."]
           },
           {
             id: "stage-6",
@@ -192,107 +250,59 @@ class Store {
             status: "success",
             startedAt: new Date(Date.now() - 3490 * 1000).toISOString(),
             finishedAt: new Date(Date.now() - 3480 * 1000).toISOString(),
-            logs: [
-              "Triggering deployment to Render production environment...",
-              "Service deployx-frontend updated to version 185da3c",
-              "Live at https://deployx-frontend.onrender.com"
-            ]
+            logs: ["SIMULATION ONLY: no deployment provider was contacted."]
           }
         ]
       },
-      {
-        id: "pipe-ext-102",
-        repoId: "external-cloud-kitchen",
-        repoName: "Cloud Kitchen Cashflow OS",
-        url: "https://ai-powered-cashflow-operating-system-for-cloud-kitch-1e8ljezix.vercel.app/",
-        branch: "production",
-        commitHash: "external",
-        commitMessage: "Existing externally hosted deployment",
-        author: "external",
-        status: "success",
-        trigger: "external",
-        startedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-        completedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-        durationMs: null,
-        stages: [
-          {
-            id: "stage-ext-102",
-            name: "deploy",
-            status: "success",
-            startedAt: null,
-            finishedAt: null,
-            logs: ["Externally hosted deployment is live."]
-          }
-        ]
-      },
-      {
-        id: "pipe-ext-103",
-        repoId: "external-attendance",
-        repoName: "Personalized Attendance Tracking",
-        url: "https://personalized-attendance-tracking.vercel.app/",
-        branch: "production",
-        commitHash: "external",
-        commitMessage: "Existing externally hosted deployment",
-        author: "external",
-        status: "success",
-        trigger: "external",
-        startedAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-        completedAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-        durationMs: null,
-        stages: [
-          {
-            id: "stage-ext-103",
-            name: "deploy",
-            status: "success",
-            startedAt: null,
-            finishedAt: null,
-            logs: ["Externally hosted deployment is live."]
-          }
-        ]
-      }
     ];
 
     this.deployments = [
       {
         id: "dep-101",
         pipelineId: "pipe-101",
+        projectId: null,
         repoId: "repo-1",
         repoName: "DeployX-org/frontend",
         environment: "production",
         version: "v1.0.1",
         commitHash: "185da3c",
-        imageTag: "ghcr.io/deployx-org/frontend:185da3c",
-        url: "https://deployx-frontend.onrender.com",
-        status: "active",
+        imageTag: null,
+        url: null,
+        status: "simulated",
+        source: "simulation",
         deployedAt: new Date(Date.now() - 3480 * 1000).toISOString(),
         rolledBackFrom: null
       },
       {
         id: "dep-ext-102",
-        pipelineId: "pipe-ext-102",
-        repoId: "external-cloud-kitchen",
-        repoName: "Cloud Kitchen Cashflow OS",
+        pipelineId: null,
+        projectId: "project-cloudkitchen-ai",
+        repoId: null,
+        repoName: "CloudKitchen AI",
         environment: "production",
         version: "Live",
-        commitHash: "external",
+        commitHash: null,
         imageTag: null,
         url: "https://ai-powered-cashflow-operating-system-for-cloud-kitch-1e8ljezix.vercel.app/",
         status: "active",
-        deployedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+        source: "external",
+        deployedAt: null,
         rolledBackFrom: null
       },
       {
         id: "dep-ext-103",
-        pipelineId: "pipe-ext-103",
-        repoId: "external-attendance",
-        repoName: "Personalized Attendance Tracking",
+        pipelineId: null,
+        projectId: "project-attendance-tracker",
+        repoId: null,
+        repoName: "Attendance Tracker",
         environment: "production",
         version: "Live",
-        commitHash: "external",
+        commitHash: null,
         imageTag: null,
         url: "https://personalized-attendance-tracking.vercel.app/",
         status: "active",
-        deployedAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+        source: "external",
+        deployedAt: null,
         rolledBackFrom: null
       }
     ];
@@ -318,6 +328,55 @@ class Store {
   }
 
   // Repositories
+  listProjects() {
+    return this.projects.map((project) => {
+      const pipelines = this.listPipelines({ projectId: project.id });
+      const deployments = this.listDeployments({ projectId: project.id });
+      return {
+        ...project,
+        pipelineRunsCount: pipelines.length,
+        lastPipeline: pipelines[0] || null,
+        lastDeployment: deployments[0] || null
+      };
+    });
+  }
+
+  getProject(id) {
+    return this.projects.find((project) => project.id === id);
+  }
+
+  getProjectDetails(id) {
+    const project = this.getProject(id);
+    if (!project) return null;
+
+    const pipelines = this.listPipelines({ projectId: id });
+    const deployments = this.listDeployments({ projectId: id });
+    const recentLogs = pipelines
+      .slice(0, 5)
+      .flatMap((pipeline) =>
+        [...pipeline.stages].reverse().flatMap((stage) =>
+          [...stage.logs].reverse().map((message) => ({
+            pipelineId: pipeline.id,
+            pipelineStartedAt: pipeline.startedAt,
+            stage: stage.name,
+            status: stage.status,
+            message
+          }))
+        )
+      )
+      .slice(0, 20);
+
+    return {
+      ...project,
+      pipelineRunsCount: pipelines.length,
+      lastPipeline: pipelines[0] || null,
+      lastDeployment: deployments[0] || null,
+      pipelines,
+      deployments,
+      recentLogs
+    };
+  }
+
   listRepositories() {
     return this.repositories;
   }
@@ -370,13 +429,16 @@ class Store {
   // Pipelines
   listPipelines(filters = {}) {
     let result = [...this.pipelines];
+    if (filters.projectId) {
+      result = result.filter((pipeline) => pipeline.projectId === filters.projectId);
+    }
     if (filters.repoId) {
       result = result.filter((p) => p.repoId === filters.repoId);
     }
     if (filters.status) {
       result = result.filter((p) => p.status === filters.status);
     }
-    result.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+    result.sort((a, b) => new Date(b.startedAt || 0) - new Date(a.startedAt || 0));
     if (filters.limit) {
       result = result.slice(0, Number(filters.limit));
     }
@@ -390,8 +452,12 @@ class Store {
   createPipeline(data) {
     const newPipeline = {
       id: `pipe-${crypto.randomUUID().slice(0, 8)}`,
-      repoId: data.repoId,
+      projectId: data.projectId || null,
+      executionMode: "simulation",
+      repoId: data.repoId || null,
       repoName: data.repoName || "unknown",
+      url: data.url || null,
+      platform: data.platform || null,
       branch: data.branch || "main",
       commitHash: data.commitHash || crypto.randomBytes(4).toString("hex"),
       commitMessage: data.commitMessage || "Manual deployment trigger",
@@ -429,6 +495,9 @@ class Store {
   // Deployments
   listDeployments(filters = {}) {
     let result = [...this.deployments];
+    if (filters.projectId) {
+      result = result.filter((deployment) => deployment.projectId === filters.projectId);
+    }
     if (filters.repoId) {
       result = result.filter((d) => d.repoId === filters.repoId);
     }
@@ -438,7 +507,7 @@ class Store {
     if (filters.status) {
       result = result.filter((d) => d.status === filters.status);
     }
-    result.sort((a, b) => new Date(b.deployedAt) - new Date(a.deployedAt));
+    result.sort((a, b) => new Date(b.deployedAt || 0) - new Date(a.deployedAt || 0));
     return result;
   }
 
@@ -451,7 +520,9 @@ class Store {
     if (data.status === "active") {
       for (const dep of this.deployments) {
         if (
-          dep.repoId === data.repoId &&
+          (data.projectId
+            ? dep.projectId === data.projectId
+            : !dep.projectId && dep.repoId === data.repoId) &&
           dep.environment === (data.environment || "production") &&
           dep.status === "active"
         ) {
@@ -463,14 +534,16 @@ class Store {
     const newDep = {
       id: `dep-${crypto.randomUUID().slice(0, 8)}`,
       pipelineId: data.pipelineId,
-      repoId: data.repoId,
+      projectId: data.projectId || null,
+      repoId: data.repoId || null,
       repoName: data.repoName || "unknown",
       environment: data.environment || "production",
       version: data.version || `v1.0.${this.deployments.length + 1}`,
       commitHash: data.commitHash,
-      imageTag: data.imageTag || `ghcr.io/${data.repoName || "app"}:${data.commitHash}`,
-      url: data.url || `https://${(data.repoName || "app").split("/").pop()}.deployx.cloud`,
+      imageTag: data.imageTag || (data.source === "simulation" ? null : `ghcr.io/${data.repoName || "app"}:${data.commitHash}`),
+      url: data.url || (data.source === "simulation" ? null : `https://${(data.repoName || "app").split("/").pop()}.deployx.cloud`),
       status: data.status || "active",
+      source: data.source || "pipeline",
       deployedAt: new Date().toISOString(),
       rolledBackFrom: data.rolledBackFrom || null
     };

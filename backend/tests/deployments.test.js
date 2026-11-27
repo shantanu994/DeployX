@@ -16,7 +16,7 @@ test("GET /api/deployments/:id returns deployment details", async () => {
   assert.equal(response.status, 200);
   assert.equal(response.body.id, "dep-101");
   assert.equal(response.body.environment, "production");
-  assert.equal(response.body.status, "active");
+  assert.equal(response.body.status, "simulated");
 });
 
 test("POST /api/deployments/:id/rollback executes rollback to previous deployment", async () => {
@@ -54,7 +54,14 @@ test("POST /api/deployments/:id/rollback executes rollback to previous deploymen
 });
 
 test("POST /api/deployments/:id/rollback rejects rollback when deployment is already active", async () => {
-  const response = await request(app).post("/api/deployments/dep-101/rollback");
+  const active = store.createDeployment({
+    pipelineId: "pipe-active-without-previous",
+    repoId: "repo-no-rollback",
+    repoName: "DeployX-org/no-rollback",
+    commitHash: "active1",
+    status: "active"
+  });
+  const response = await request(app).post(`/api/deployments/${active.id}/rollback`);
   assert.equal(response.status, 400);
   assert.match(response.body.message, /already the active deployment/i);
 });

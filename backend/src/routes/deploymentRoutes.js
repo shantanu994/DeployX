@@ -7,8 +7,8 @@ const deploymentService = require("../services/deploymentService");
  * List deployments
  */
 router.get("/", (req, res) => {
-  const { repoId, environment, status } = req.query;
-  const deployments = deploymentService.listDeployments({ repoId, environment, status });
+  const { projectId, repoId, environment, status } = req.query;
+  const deployments = deploymentService.listDeployments({ projectId, repoId, environment, status });
   res.status(200).json({
     count: deployments.length,
     deployments
